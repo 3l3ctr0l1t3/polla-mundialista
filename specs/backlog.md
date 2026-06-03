@@ -45,7 +45,9 @@ awaiting the runtime credentials/toggles below to be verified end-to-end and pro
    and live ingestion (008). See `scripts/ingest/README.md`. Locally: `INGEST_FORCE=1 npm run ingest`.
 4. **Public GitHub repo + 3 Actions secrets** (`FOOTBALL_DATA_API_KEY`, `FIREBASE_SERVICE_ACCOUNT`,
    `FIREBASE_PROJECT_ID`) → activates the cron (008).
-5. **Apply the real design** (reskin 009 theme tokens) + Lighthouse pass.
+5. **Design:** first-pass dark-neon "La Pollita" theme APPLIED (009 — Barlow type, dark palette, neon glow,
+   deployed). Remaining: a **pixel pass from screenshots** (LIVE-dot pulse, enter/toast animations,
+   mint-tinted card strokes, large condensed score/point numerals) + Lighthouse.
 6. **Confirm scoring intent** (006/008): with the default config an **exact** scoreline scores **6**
    (exact 5 + goal-diff bonus 1), since an exact result always has the right goal difference. If you
    want exact to be a flat 5, set `goalDiffOnlyOnCorrectOutcome` aside and exclude the bonus on exact.

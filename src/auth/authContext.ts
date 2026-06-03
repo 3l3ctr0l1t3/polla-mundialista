@@ -7,6 +7,12 @@ export interface AuthContextValue {
   user: FirebaseUser | null
   /** True until the initial auth resolution completes. */
   loading: boolean
+  /**
+   * App-level superadmin flag, mirrored live from `users/{uid}.isAdmin` (ticket 014).
+   * Set ONLY out-of-band via the admin SDK; the client never writes it. Defaults to
+   * `false` (signed out, or while the user doc has not yet been read).
+   */
+  isSuperAdmin: boolean
 }
 
 export const AuthContext = createContext<AuthContextValue | undefined>(undefined)

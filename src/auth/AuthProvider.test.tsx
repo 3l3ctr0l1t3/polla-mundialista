@@ -22,19 +22,30 @@ vi.mock('../firebase/db', () => ({
 const getDocMock = vi.fn<(...args: unknown[]) => Promise<unknown>>()
 const setDocMock = vi.fn<(...args: unknown[]) => Promise<void>>(() => Promise.resolve())
 
+// `onSnapshot` drives the live `users/{uid}.isAdmin` mirror. We capture its onNext so a
+// test can push a user-doc snapshot and assert `isSuperAdmin`.
+type SnapNext = (snap: { exists: () => boolean; data: () => { isAdmin?: boolean } }) => void
+let userDocNext: SnapNext | null = null
+const onSnapshotMock = vi.fn((_ref: unknown, onNext: SnapNext) => {
+  userDocNext = onNext
+  return () => {}
+})
+
 vi.mock('firebase/firestore', () => ({
   serverTimestamp: () => 'SERVER_TS',
   setDoc: (...args: unknown[]) => setDocMock(...args),
   getDoc: (...args: unknown[]) => getDocMock(...args),
+  onSnapshot: (ref: unknown, onNext: SnapNext) => onSnapshotMock(ref, onNext),
 }))
 
 // A probe component that surfaces context values as text for assertions.
 function Probe() {
-  const { user, loading } = useAuth()
+  const { user, loading, isSuperAdmin } = useAuth()
   return (
     <div>
       <span data-testid="loading">{String(loading)}</span>
       <span data-testid="email">{user?.email ?? 'none'}</span>
+      <span data-testid="superadmin">{String(isSuperAdmin)}</span>
     </div>
   )
 }
@@ -49,7 +60,9 @@ function renderProbe() {
 
 beforeEach(() => {
   authCallback = null
+  userDocNext = null
   onAuthChangeMock.mockClear()
+  onSnapshotMock.mockClear()
   getDocMock.mockReset()
   setDocMock.mockClear()
 })
@@ -106,5 +119,47 @@ describe('AuthProvider', () => {
 
     await waitFor(() => expect(screen.getByTestId('loading').textContent).toBe('false'))
     expect(screen.getByTestId('email').textContent).toBe('e@f.com')
+  })
+
+  it('defaults isSuperAdmin to false while signed out', async () => {
+    renderProbe()
+    act(() => {
+      authCallback?.(null)
+    })
+    await waitFor(() => expect(screen.getByTestId('loading').textContent).toBe('false'))
+    expect(screen.getByTestId('superadmin').textContent).toBe('false')
+    // No user-doc subscription while signed out.
+    expect(onSnapshotMock).not.toHaveBeenCalled()
+  })
+
+  it('sets isSuperAdmin true when the user doc has isAdmin === true', async () => {
+    getDocMock.mockResolvedValueOnce({ exists: () => true, data: () => ({ isAdmin: true }) })
+
+    renderProbe()
+    act(() => {
+      authCallback?.({ uid: 'admin1', email: 'a@b.com', displayName: 'A', photoURL: null })
+    })
+
+    await waitFor(() => expect(screen.getByTestId('loading').textContent).toBe('false'))
+    // The live user-doc listener reports isAdmin: true.
+    act(() => {
+      userDocNext?.({ exists: () => true, data: () => ({ isAdmin: true }) })
+    })
+    await waitFor(() => expect(screen.getByTestId('superadmin').textContent).toBe('true'))
+  })
+
+  it('keeps isSuperAdmin false when isAdmin is absent or false', async () => {
+    getDocMock.mockResolvedValueOnce({ exists: () => true, data: () => ({ isAdmin: false }) })
+
+    renderProbe()
+    act(() => {
+      authCallback?.({ uid: 'u4', email: 'n@b.com', displayName: 'N', photoURL: null })
+    })
+
+    await waitFor(() => expect(screen.getByTestId('loading').textContent).toBe('false'))
+    act(() => {
+      userDocNext?.({ exists: () => true, data: () => ({ isAdmin: false }) })
+    })
+    expect(screen.getByTestId('superadmin').textContent).toBe('false')
   })
 })

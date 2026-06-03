@@ -13,6 +13,11 @@ vi.mock('../hooks/useMyGroups', () => ({
   useMyGroups: () => groupsState,
 }))
 
+let isSuperAdmin = false
+vi.mock('../auth/useAuth', () => ({
+  useAuth: () => ({ user: { uid: 'me' }, loading: false, isSuperAdmin }),
+}))
+
 vi.mock('../firebase/auth', () => ({
   signOutUser: vi.fn(),
 }))
@@ -56,6 +61,7 @@ function renderPage() {
 
 beforeEach(() => {
   groupsState = { owned: [], approved: [], pending: [], loading: false, error: null }
+  isSuperAdmin = false
 })
 
 describe('MyGroupsPage', () => {
@@ -108,5 +114,17 @@ describe('MyGroupsPage', () => {
     // Pending request is surfaced separately (no fixtures link), with a status note.
     expect(screen.getByText('Office Pool')).toBeInTheDocument()
     expect(screen.getByText('Awaiting approval')).toBeInTheDocument()
+  })
+
+  it('hides the Superadmin entry from a normal user', () => {
+    isSuperAdmin = false
+    renderPage()
+    expect(screen.queryByRole('link', { name: /superadmin/i })).not.toBeInTheDocument()
+  })
+
+  it('shows the Superadmin entry only to a superadmin, linking to /superadmin', () => {
+    isSuperAdmin = true
+    renderPage()
+    expect(screen.getByRole('link', { name: /superadmin/i })).toHaveAttribute('href', '/superadmin')
   })
 })

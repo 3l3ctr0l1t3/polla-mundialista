@@ -14,7 +14,7 @@
  *   - Enable the Google sign-in provider in the Firebase console (`la-pollita-corp`).
  */
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import { serverTimestamp, setDoc, getDoc } from 'firebase/firestore'
+import { serverTimestamp, setDoc, getDoc, onSnapshot } from 'firebase/firestore'
 import { onAuthChange, type FirebaseUser } from '../firebase/auth'
 import { userDoc } from '../firebase/db'
 import { AuthContext, type AuthContextValue } from './authContext'
@@ -41,6 +41,9 @@ async function upsertUserProfile(user: FirebaseUser): Promise<void> {
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<FirebaseUser | null>(null)
   const [loading, setLoading] = useState(true)
+  // App-level superadmin flag (ticket 014), mirrored live from users/{uid}.isAdmin.
+  // Server-only: the client never writes it; we only READ it here. Defaults false.
+  const [isSuperAdmin, setIsSuperAdmin] = useState(false)
   // Guards against state updates after unmount / out-of-order async resolutions.
   const mountedRef = useRef(true)
 
@@ -78,7 +81,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [])
 
-  const value = useMemo<AuthContextValue>(() => ({ user, loading }), [user, loading])
+  // Live-mirror users/{uid}.isAdmin into `isSuperAdmin`. A separate listener so the
+  // flag stays current if it's flipped server-side mid-session. Cleaned up on uid change
+  // / unmount; resets to false while signed out or before the doc resolves.
+  const uid = user?.uid ?? null
+  useEffect(() => {
+    setIsSuperAdmin(false)
+    if (!uid) return
+
+    const unsubscribe = onSnapshot(
+      userDoc(uid),
+      (snap) => {
+        if (!mountedRef.current) return
+        setIsSuperAdmin(snap.exists() && snap.data()?.isAdmin === true)
+      },
+      () => {
+        // Non-fatal: a failed read just leaves the user as a non-superadmin.
+        if (!mountedRef.current) return
+        setIsSuperAdmin(false)
+      },
+    )
+    return unsubscribe
+  }, [uid])
+
+  const value = useMemo<AuthContextValue>(
+    () => ({ user, loading, isSuperAdmin }),
+    [user, loading, isSuperAdmin],
+  )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }

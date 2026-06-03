@@ -28,8 +28,10 @@ import LinkIcon from '@mui/icons-material/Link'
 import GroupsIcon from '@mui/icons-material/Groups'
 import HourglassTopIcon from '@mui/icons-material/HourglassTop'
 import LogoutIcon from '@mui/icons-material/Logout'
+import ShieldIcon from '@mui/icons-material/Shield'
 import { Link as RouterLink, useNavigate } from 'react-router-dom'
 import { signOutUser } from '../firebase/auth'
+import { useAuth } from '../auth/useAuth'
 import { useMyGroups, type JoinedGroup } from '../hooks/useMyGroups'
 import { LoadingState, EmptyState, ErrorState } from '../components/states'
 import type { Group } from '../shared/types'
@@ -100,6 +102,7 @@ function PendingCard({ entry }: { entry: JoinedGroup }) {
 
 export function MyGroupsPage() {
   const { owned, approved, pending, loading, error } = useMyGroups()
+  const { isSuperAdmin } = useAuth()
   const navigate = useNavigate()
   const [joinOpen, setJoinOpen] = useState(false)
   const [joinInput, setJoinInput] = useState('')
@@ -126,14 +129,27 @@ export function MyGroupsPage() {
             My Groups
           </Typography>
         </Stack>
-        <Button
-          size="small"
-          color="inherit"
-          startIcon={<LogoutIcon />}
-          onClick={() => void signOutUser()}
-        >
-          Sign out
-        </Button>
+        <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
+          {isSuperAdmin && (
+            <Button
+              size="small"
+              color="primary"
+              startIcon={<ShieldIcon />}
+              component={RouterLink}
+              to="/superadmin"
+            >
+              Superadmin
+            </Button>
+          )}
+          <Button
+            size="small"
+            color="inherit"
+            startIcon={<LogoutIcon />}
+            onClick={() => void signOutUser()}
+          >
+            Sign out
+          </Button>
+        </Stack>
       </Stack>
 
       <Stack direction="row" spacing={1.5} sx={{ mb: 3, flexWrap: 'wrap', gap: 1 }}>

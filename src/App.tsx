@@ -10,6 +10,7 @@
  *   - `/`            → MyGroups (owned + joined + pending)
  *   - `/groups/new`  → create a group
  *   - `/join/:gid`   → request to join a group
+ *   - `/superadmin`  → app-level god-view (ticket 014); only `isSuperAdmin` may see it
  *   - `/g/:gid/{fixtures,predictions,leaderboard,standings,admin}` → group-scoped app
  *
  * Group routes are wrapped in `<GroupProvider>`; a non-member of that group is shown the
@@ -26,6 +27,7 @@ import LoginPage from './pages/LoginPage'
 import MyGroupsPage from './pages/MyGroupsPage'
 import CreateGroupPage from './pages/CreateGroupPage'
 import JoinGroupPage from './pages/JoinGroupPage'
+import SuperadminPage from './pages/SuperadminPage'
 
 /** Reads `:gid` from the route and provides the group context to the in-group app. */
 function GroupRoute() {
@@ -38,7 +40,7 @@ function GroupRoute() {
 }
 
 function App() {
-  const { user, loading } = useAuth()
+  const { user, loading, isSuperAdmin } = useAuth()
 
   if (loading) {
     return (
@@ -66,6 +68,12 @@ function App() {
       <Route path="/" element={<MyGroupsPage />} />
       <Route path="/groups/new" element={<CreateGroupPage />} />
       <Route path="/join/:gid" element={<JoinGroupPage />} />
+      {/* App-level superadmin god-view (ticket 014): only the superadmin may see it;
+          everyone else is redirected to My Groups. Rules remain the real gate. */}
+      <Route
+        path="/superadmin"
+        element={isSuperAdmin ? <SuperadminPage /> : <Navigate to="/" replace />}
+      />
       <Route path="/g/:gid/*" element={<GroupRoute />} />
       {/* Unknown paths fall back to My Groups. */}
       <Route path="*" element={<Navigate to="/" replace />} />

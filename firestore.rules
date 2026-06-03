@@ -84,6 +84,22 @@ service cloud.firestore {
         );
     }
 
+    // ---- superadmin (app-level god-view; ticket 014) ------------------------
+    // App-level superadmin = users/{uid}.isAdmin == true. This flag is settable ONLY
+    // via the admin SDK (the `users` rules forbid any client setting/changing it), so
+    // no user can self-promote. It is SEPARATE from per-group admin (isGroupAdmin).
+    //
+    // Used only as a FINAL OR on READ rules for members / leaderboard / predictions, so
+    // normal members/owners short-circuit before this helper runs and never pay its cost.
+    // COST: 1 get() on users/{uid} (plus the implicit exists()). Evaluated last, only
+    // when the caller is NOT already an owner/member, so member/owner reads add no extra
+    // read. Read-only oversight — no create/update/delete rule references this.
+    function isSuperAdmin() {
+      return isSignedIn()
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
+    }
+
     // ---- global, read-only collections (admin SDK writes only) --------------
 
     match /matches/{matchId} {
@@ -174,8 +190,9 @@ service cloud.firestore {
         // Single-doc reads: own doc (by id, incl. a non-existent one — GroupProvider) or
         // a group member/admin reading the roster. The collectionGroup(members) query in
         // useMyGroups is authorized separately by the recursive-wildcard rule below.
-        allow read: if isSignedIn()
-          && (request.auth.uid == uid || isGroupMember(gid));
+        allow read: if (isSignedIn()
+          && (request.auth.uid == uid || isGroupMember(gid)))
+          || isSuperAdmin();
 
         // Self-request to join: own doc, uid matches, role 'member', pending, no decision.
         allow create: if isSignedIn()
@@ -231,12 +248,13 @@ service cloud.firestore {
         // predictions stay hidden so no one can copy. Cost: reading another member's
         // prediction adds 1 exists()+1 get() on the global match doc (matchHasKickedOff)
         // on top of isGroupMember(gid)'s lookups — acceptable at group scale.
-        allow read: if isSignedIn()
+        allow read: if (isSignedIn()
           && isGroupMember(gid)
           && (
             resource.data.uid == request.auth.uid
             || matchHasKickedOff(resource.data.matchId)
-          );
+          ))
+          || isSuperAdmin();
 
         allow create: if isGroupMember(gid)
           && request.auth.uid == request.resource.data.uid
@@ -258,7 +276,7 @@ service cloud.firestore {
       // Per-group aggregate. Group members read; admin SDK is the only writer.
 
       match /leaderboard/{uid} {
-        allow read: if isGroupMember(gid);
+        allow read: if isGroupMember(gid) || isSuperAdmin();
         allow write: if false;
       }
     }

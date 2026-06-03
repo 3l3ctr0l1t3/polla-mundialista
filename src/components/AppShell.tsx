@@ -1,0 +1,190 @@
+import type { ReactNode } from 'react'
+import { useId } from 'react'
+import AppBar from '@mui/material/AppBar'
+import Toolbar from '@mui/material/Toolbar'
+import Typography from '@mui/material/Typography'
+import Box from '@mui/material/Box'
+import Drawer from '@mui/material/Drawer'
+import List from '@mui/material/List'
+import ListItemButton from '@mui/material/ListItemButton'
+import BottomNavigation from '@mui/material/BottomNavigation'
+import BottomNavigationAction from '@mui/material/BottomNavigationAction'
+import Paper from '@mui/material/Paper'
+import Stack from '@mui/material/Stack'
+import useMediaQuery from '@mui/material/useMediaQuery'
+import { useTheme } from '@mui/material/styles'
+import SportsSoccerIcon from '@mui/icons-material/SportsSoccer'
+import { layout } from '../theme/tokens'
+import { DEFAULT_NAV_ITEMS, type NavItem } from './navItems'
+
+export interface AppShellProps {
+  /** Page content. */
+  children?: ReactNode
+  /** App title shown in the top app bar. */
+  title?: string
+  /** Navigation destinations. Defaults to {@link DEFAULT_NAV_ITEMS}. */
+  navItems?: NavItem[]
+  /** Currently selected nav item key (controlled). */
+  selectedKey?: string
+  /** Called with the item key when a destination is chosen. */
+  onNavigate?: (key: string) => void
+}
+
+/**
+ * Responsive MD3 application frame.
+ *
+ * - Top app bar with the app title.
+ * - Mobile (`< sm`): bottom `BottomNavigation` bar.
+ * - Desktop (`>= sm`): a left navigation rail (permanent `Drawer`).
+ *
+ * Routing is intentionally NOT wired here — the parent connects `navItems`,
+ * `selectedKey` and `onNavigate` to its router.
+ */
+export function AppShell({
+  children,
+  title = 'Polla Mundialista',
+  navItems = DEFAULT_NAV_ITEMS,
+  selectedKey,
+  onNavigate,
+}: AppShellProps) {
+  const theme = useTheme()
+  // Mobile-first: rail appears at the `sm` breakpoint and up.
+  const isDesktop = useMediaQuery(theme.breakpoints.up('sm'))
+  const navLabelId = useId()
+
+  const handleSelect = (key: string) => {
+    onNavigate?.(key)
+  }
+
+  const rail = (
+    <Drawer
+      variant="permanent"
+      aria-label="Primary navigation"
+      sx={{
+        width: layout.navRailWidth,
+        flexShrink: 0,
+        '& .MuiDrawer-paper': {
+          width: layout.navRailWidth,
+          boxSizing: 'border-box',
+          borderRight: 1,
+          borderColor: 'divider',
+          bgcolor: 'background.default',
+        },
+      }}
+    >
+      <Toolbar />
+      <List
+        component="nav"
+        aria-labelledby={navLabelId}
+        sx={{ display: 'flex', flexDirection: 'column', gap: 1, py: 1 }}
+      >
+        <Box
+          component="span"
+          id={navLabelId}
+          sx={{
+            position: 'absolute',
+            width: 1,
+            height: 1,
+            overflow: 'hidden',
+            clip: 'rect(0 0 0 0)',
+          }}
+        >
+          Primary
+        </Box>
+        {navItems.map((item) => {
+          const selected = item.key === selectedKey
+          return (
+            <ListItemButton
+              key={item.key}
+              selected={selected}
+              onClick={() => handleSelect(item.key)}
+              aria-current={selected ? 'page' : undefined}
+              sx={{
+                flexDirection: 'column',
+                borderRadius: 3,
+                mx: 1,
+                gap: 0.5,
+                py: 1,
+                '&.Mui-selected': {
+                  bgcolor: 'action.selected',
+                },
+              }}
+            >
+              <Box
+                aria-hidden
+                sx={{ display: 'flex', color: selected ? 'primary.main' : 'text.secondary' }}
+              >
+                {item.icon}
+              </Box>
+              <Typography
+                variant="caption"
+                sx={{ color: selected ? 'primary.main' : 'text.secondary' }}
+              >
+                {item.label}
+              </Typography>
+            </ListItemButton>
+          )
+        })}
+      </List>
+    </Drawer>
+  )
+
+  const bottomBar = (
+    <Paper
+      square
+      elevation={3}
+      sx={{ position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: theme.zIndex.appBar }}
+    >
+      <BottomNavigation
+        showLabels
+        value={selectedKey ?? false}
+        onChange={(_, key: string) => handleSelect(key)}
+        aria-label="Primary navigation"
+      >
+        {navItems.map((item) => (
+          <BottomNavigationAction
+            key={item.key}
+            value={item.key}
+            label={item.label}
+            icon={item.icon}
+          />
+        ))}
+      </BottomNavigation>
+    </Paper>
+  )
+
+  return (
+    <Box sx={{ minHeight: '100dvh', bgcolor: 'background.default' }}>
+      <AppBar position="fixed">
+        <Toolbar>
+          <SportsSoccerIcon sx={{ mr: 1 }} aria-hidden />
+          <Typography variant="h6" component="h1" noWrap>
+            {title}
+          </Typography>
+        </Toolbar>
+      </AppBar>
+
+      <Stack direction="row" sx={{ minHeight: '100dvh' }}>
+        {isDesktop && rail}
+
+        <Box
+          component="main"
+          sx={{
+            flexGrow: 1,
+            width: '100%',
+            // Offset for the fixed app bar.
+            pt: { xs: 8, sm: 8 },
+            px: { xs: 2, sm: 3 },
+            pb: { xs: 10, sm: 3 }, // room for the bottom bar on mobile
+          }}
+        >
+          {children}
+        </Box>
+      </Stack>
+
+      {!isDesktop && bottomBar}
+    </Box>
+  )
+}
+
+export default AppShell

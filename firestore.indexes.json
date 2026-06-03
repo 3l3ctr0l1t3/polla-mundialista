@@ -23,6 +23,14 @@
         { "fieldPath": "uid", "order": "ASCENDING" },
         { "fieldPath": "matchId", "order": "ASCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "members",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "requestedAt", "order": "ASCENDING" }
+      ]
     }
   ],
   "fieldOverrides": [

@@ -1,0 +1,9 @@
+dist
+node_modules
+coverage
+package-lock.json
+
+# Pre-existing tracked content owned by the SDD harness / specs — not reformatted here.
+.claude
+specs
+CLAUDE.md

@@ -6,7 +6,7 @@ Dependency order: 001 → 002 → 003 → (004, 006 parallel) → 005 → 007 �
 
 | ID  | Ticket | Status | Depends on | Specialist agent |
 |-----|--------|--------|-----------|------------------|
-| 001 | Project scaffold & tooling | 🟦 | — | react-mui-builder |
+| 001 | Project scaffold & tooling | 🟨 | — | react-mui-builder |
 | 002 | Auth & participant identity | 🟦 | 001 | react-mui-builder |
 | 003 | Data model & security rules | 🟦 | 001 | firestore-rules-engineer |
 | 004 | Fixtures & results display | 🟦 | 003 | react-mui-builder + ingestion-engineer |

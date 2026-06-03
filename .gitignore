@@ -5,8 +5,10 @@ node_modules/
 
 # Build output
 dist/
+dist-ssr/
 build/
 .vite/
+*.local
 
 # Environment & secrets — NEVER commit these (repo is PUBLIC)
 .env

@@ -1,11 +1,135 @@
 rules_version = '2';
 
-// Deny-all placeholder. The real security rules are owned by ticket 003.
-// Until then the database is locked down so it is never open by accident.
+// Polla Mundialista security rules — the integrity backbone (ticket 003).
+//
+// TWO-WRITERS RULE (constitution §3):
+//   - matches / leaderboard / standings / config are written ONLY by the ingestion
+//     service account (admin SDK, which bypasses these rules). Clients are read-only.
+//   - the browser writes ONLY the signed-in user's own prediction, and ONLY before kickoff.
+//
+// AUTHORITATIVE KICKOFF LOCK (constitution §4):
+//   prediction create/update is allowed only while `request.time < match.kickoff`,
+//   using SERVER time. The client clock is never trusted.
+//
+// COST NOTE: each prediction create/update performs ONE get() on the target match doc
+//   (the kickoff lock) and prediction writes also get() config/allowlist (membership).
+//   That is up to two extra reads per prediction write — acceptable at this scale
+//   (a few dozen participants x 104 matches). Reads of public collections add no get()s.
 service cloud.firestore {
   match /databases/{database}/documents {
-    match /{document=**} {
-      allow read, write: if false;
+
+    // ---- helpers ------------------------------------------------------------
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    // Allowlist membership: the signed-in email must be listed in config/allowlist.emails.
+    // Applied to prediction writes so only invited participants can play.
+    function isMember() {
+      return isSignedIn()
+        && request.auth.token.email != null
+        && request.auth.token.email
+             in get(/databases/$(database)/documents/config/allowlist).data.emails;
+    }
+
+    function matchKickoff(matchId) {
+      return get(/databases/$(database)/documents/matches/$(matchId)).data.kickoff;
+    }
+
+    // True while the referenced match exists and has not kicked off (server time).
+    function beforeKickoff(matchId) {
+      return exists(/databases/$(database)/documents/matches/$(matchId))
+        && request.time < matchKickoff(matchId);
+    }
+
+    function isInt0to30(v) {
+      return v is int && v >= 0 && v <= 30;
+    }
+
+    // ---- public, read-only collections (admin SDK writes only) --------------
+
+    match /matches/{matchId} {
+      allow read: if isSignedIn();
+      allow write: if false;
+    }
+
+    match /leaderboard/{uid} {
+      allow read: if isSignedIn();
+      allow write: if false;
+    }
+
+    match /standings/{groupId} {
+      allow read: if isSignedIn();
+      allow write: if false;
+    }
+
+    match /config/{docId} {
+      allow read: if isSignedIn();
+      allow write: if false;
+    }
+
+    // ---- users --------------------------------------------------------------
+    // Owner reads/creates/updates their own profile. `isAdmin` may never be set or
+    // changed by a client (admin flag is granted out-of-band via the admin SDK).
+
+    match /users/{uid} {
+      allow read: if isSignedIn() && request.auth.uid == uid;
+
+      allow create: if isSignedIn()
+        && request.auth.uid == uid
+        && request.resource.data.uid == uid
+        && (!('isAdmin' in request.resource.data.keys()) || request.resource.data.isAdmin == false);
+
+      allow update: if isSignedIn()
+        && request.auth.uid == uid
+        && request.resource.data.uid == uid
+        // isAdmin must be absent or unchanged from its stored value.
+        && (
+          !('isAdmin' in request.resource.data.keys())
+          || request.resource.data.isAdmin == resource.data.isAdmin
+        );
+
+      allow delete: if false;
+    }
+
+    // ---- predictions --------------------------------------------------------
+    // Doc id is `{uid}_{matchId}`. Owner-only. Kickoff-locked. No points/breakdown
+    // tampering. Members only.
+
+    function predictionShapeValid() {
+      return request.resource.data.uid is string
+        && request.resource.data.matchId is string
+        && isInt0to30(request.resource.data.homeGoals)
+        && isInt0to30(request.resource.data.awayGoals)
+        // clients may never write graded fields.
+        && !('points' in request.resource.data.keys())
+        && !('breakdown' in request.resource.data.keys());
+    }
+
+    function ownsPrediction(predId) {
+      return request.auth.uid == request.resource.data.uid
+        // doc id must be exactly `{uid}_{matchId}`.
+        && predId == request.auth.uid + '_' + request.resource.data.matchId;
+    }
+
+    match /predictions/{predId} {
+      allow read: if isSignedIn()
+        && resource.data.uid == request.auth.uid;
+
+      allow create: if isMember()
+        && ownsPrediction(predId)
+        && predictionShapeValid()
+        && beforeKickoff(request.resource.data.matchId);
+
+      allow update: if isMember()
+        && ownsPrediction(predId)
+        // matchId is immutable across an update.
+        && request.resource.data.matchId == resource.data.matchId
+        && predictionShapeValid()
+        && beforeKickoff(request.resource.data.matchId);
+
+      allow delete: if false;
     }
   }
 }

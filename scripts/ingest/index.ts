@@ -3,16 +3,22 @@
 // Per run:
 //   0. Early-exit outside the tournament window (saves Actions minutes), unless
 //      INGEST_FORCE=1 (set by workflow_dispatch input).
-//   1. Fetch WC matches + standings (rate-limited v4 client).
-//   2. Upsert matches/{fdId} — idempotent, id-keyed.
-//   3. Grade FINISHED matches via the SHARED scoring engine, writing
-//      points/breakdown to predictions/{uid}_{matchId}. A `scoringVersion` guard
-//      on each prediction avoids re-grading at the same scoring version.
-//   4. Rebuild the full leaderboard/{uid} (dense rank + tiebreakers).
-//   5. Upsert standings/{group}.
-//   6. Write config/meta.lastIngestRun (+ lastIngestAt).
+//   1. Fetch WC matches + standings (rate-limited v4 client).        [GLOBAL]
+//   2. Upsert matches/{fdId} — idempotent, id-keyed.                 [GLOBAL]
+//   3. Upsert standings/{group}.                                     [GLOBAL]
+//   4. Write config/meta.lastIngestRun (+ lastIngestAt).             [GLOBAL]
+//   5. For EACH group in groups/* (multi-tenant — ticket 012):
+//        a. Resolve the participant set = approved members
+//           (groups/{gid}/members where status==='approved') UNION the implicit
+//           owner (groups/{gid}.ownerUid, who carries no member doc).
+//        b. Grade FINISHED matches via the SHARED scoring engine, writing
+//           points/breakdown to groups/{gid}/predictions/{uid}_{matchId}. A
+//           per-prediction `scoringVersion` guard avoids re-grading.
+//        c. Rebuild that group's groups/{gid}/leaderboard/{uid}
+//           (dense rank + tiebreakers) from its graded predictions.
 //
-// Fails non-zero on any error so a failed cron shows red.
+// Matches/standings/config stay GLOBAL (top-level). Predictions + leaderboards
+// are group-scoped. Fails non-zero on any error so a failed cron shows red.
 
 import { admin, getDb } from './firestoreAdmin.ts'
 import { FootballDataClient } from './footballData.ts'
@@ -57,75 +63,158 @@ async function upsertMatches(db: FirebaseFirestore.Firestore, matches: MatchDoc[
   })
 }
 
-/** Grade FINISHED matches; write points/breakdown to each prediction. */
-async function gradeFinishedMatches(
+/** A group plus its resolved participant set (approved members ∪ implicit owner). */
+interface GroupContext {
+  groupId: string
+  ownerUid: string
+  /** uid → displayName/photo for every participant (members + owner). */
+  participants: ParticipantProfile[]
+}
+
+/**
+ * Resolve the participant set for one group:
+ *   approved members (groups/{gid}/members where status==='approved')
+ *   ∪ the implicit owner (groups/{gid}.ownerUid — has NO member doc).
+ *
+ * displayName/photo come from each member doc; for the implicit owner (and any
+ * member doc missing a name) we fall back to the global users/{uid} profile,
+ * then to the uid itself so a leaderboard row is never nameless.
+ */
+async function resolveGroupContext(
   db: FirebaseFirestore.Firestore,
-  matches: MatchDoc[],
+  groupDoc: FirebaseFirestore.QueryDocumentSnapshot,
+): Promise<GroupContext> {
+  const groupId = groupDoc.id
+  const group = groupDoc.data() as { ownerUid?: string }
+  const ownerUid = group.ownerUid ?? ''
+
+  const membersSnap = await groupDoc.ref
+    .collection('members')
+    .where('status', '==', 'approved')
+    .get()
+
+  const byUid = new Map<string, ParticipantProfile>()
+  for (const d of membersSnap.docs) {
+    const data = d.data() as { uid?: string; displayName?: string; photoURL?: string | null }
+    const uid = data.uid ?? d.id
+    byUid.set(uid, {
+      uid,
+      displayName: data.displayName ?? '',
+      photoURL: data.photoURL ?? null,
+    })
+  }
+
+  // The owner is an implicit approved admin — ensure a participant entry exists
+  // even though they carry no member doc.
+  if (ownerUid && !byUid.has(ownerUid)) {
+    byUid.set(ownerUid, { uid: ownerUid, displayName: '', photoURL: null })
+  }
+
+  // Backfill any missing displayName from the global users/{uid} profile.
+  const needProfile = [...byUid.values()].filter((p) => !p.displayName)
+  await Promise.all(
+    needProfile.map(async (p) => {
+      const userSnap = await db.doc(`users/${p.uid}`).get()
+      const u = userSnap.exists
+        ? (userSnap.data() as { displayName?: string; photoURL?: string | null })
+        : undefined
+      p.displayName = u?.displayName || p.uid
+      if (p.photoURL == null) p.photoURL = u?.photoURL ?? null
+    }),
+  )
+
+  return { groupId, ownerUid, participants: [...byUid.values()] }
+}
+
+/**
+ * Grade FINISHED matches for ONE group; write points/breakdown to each of that
+ * group's predictions (groups/{gid}/predictions/{uid}_{matchId}). Only
+ * predictions belonging to a participant are graded — predictions from a
+ * removed member are left untouched (and excluded from the board anyway).
+ */
+async function gradeGroupPredictions(
+  db: FirebaseFirestore.Firestore,
+  ctx: GroupContext,
+  finished: Map<string, { home: number; away: number }>,
   cfg: ScoringConfig,
 ): Promise<number> {
-  let graded = 0
+  const participantUids = new Set(ctx.participants.map((p) => p.uid))
   const writes: Array<{
     ref: FirebaseFirestore.DocumentReference
     data: FirebaseFirestore.UpdateData<unknown>
   }> = []
 
-  for (const m of matches) {
-    if (m.status !== 'FINISHED') continue
-    if (m.score.home == null || m.score.away == null) continue
-    const actual = { home: m.score.home, away: m.score.away }
+  const predsSnap = await db.collection(`groups/${ctx.groupId}/predictions`).get()
 
-    const predsSnap = await db.collection('predictions').where('matchId', '==', m.matchId).get()
-
-    for (const doc of predsSnap.docs) {
-      const p = doc.data() as {
-        homeGoals: number
-        awayGoals: number
-        scoringVersion?: number
-      }
-      // scoringVersion guard — skip already-graded-at-this-version predictions.
-      if (p.scoringVersion === SCORING_VERSION) continue
-
-      const { points, breakdown } = scorePrediction(
-        { home: p.homeGoals, away: p.awayGoals },
-        actual,
-        cfg,
-      )
-      writes.push({
-        ref: doc.ref,
-        data: { points, breakdown, scoringVersion: SCORING_VERSION },
-      })
-      graded += 1
+  for (const doc of predsSnap.docs) {
+    const p = doc.data() as {
+      uid?: string
+      matchId?: string
+      homeGoals: number
+      awayGoals: number
+      scoringVersion?: number
     }
+    const uid = p.uid ?? doc.id.split('_')[0]
+    if (!participantUids.has(uid)) continue // not an active participant — skip.
+
+    const matchId = p.matchId ?? doc.id.slice(doc.id.indexOf('_') + 1)
+    const actual = finished.get(matchId)
+    if (!actual) continue // match not FINISHED (or no result yet).
+
+    // scoringVersion guard — skip already-graded-at-this-version predictions.
+    if (p.scoringVersion === SCORING_VERSION) continue
+
+    const { points, breakdown } = scorePrediction(
+      { home: p.homeGoals, away: p.awayGoals },
+      actual,
+      cfg,
+    )
+    writes.push({
+      ref: doc.ref,
+      data: { points, breakdown, scoringVersion: SCORING_VERSION },
+    })
   }
 
   await commitInBatches(db, writes, (batch, w) => {
     batch.update(w.ref, w.data)
   })
-  return graded
+  return writes.length
 }
 
-/** Recompute the full leaderboard from all graded predictions. */
-async function rebuildLeaderboard(db: FirebaseFirestore.Firestore): Promise<number> {
-  const [predsSnap, usersSnap] = await Promise.all([
-    db.collection('predictions').get(),
-    db.collection('users').get(),
-  ])
+/**
+ * Recompute ONE group's leaderboard from its graded predictions, restricted to
+ * that group's participant set. Writes groups/{gid}/leaderboard/{uid}.
+ */
+async function rebuildGroupLeaderboard(
+  db: FirebaseFirestore.Firestore,
+  ctx: GroupContext,
+): Promise<number> {
+  const predsSnap = await db.collection(`groups/${ctx.groupId}/predictions`).get()
 
   const predictions: GradedPrediction[] = predsSnap.docs.map((d) => {
     const data = d.data()
-    return { uid: data.uid, points: data.points, breakdown: data.breakdown }
+    return {
+      uid: data.uid ?? d.id.split('_')[0],
+      points: data.points,
+      breakdown: data.breakdown,
+    }
   })
 
-  const users: ParticipantProfile[] = usersSnap.docs.map((d) => {
-    const data = d.data()
-    return { uid: data.uid, displayName: data.displayName, photoURL: data.photoURL ?? null }
-  })
-
-  const rows = buildLeaderboard(predictions, users)
+  const rows = buildLeaderboard(predictions, ctx.participants)
   const updatedAt = Timestamp.now()
+  const board = db.collection(`groups/${ctx.groupId}/leaderboard`)
+
+  // Remove stale rows (e.g. a member who was removed) so the board exactly
+  // mirrors the current participant set — keeps reruns idempotent.
+  const existingSnap = await board.get()
+  const keep = new Set(rows.map((r) => r.uid))
+  const stale = existingSnap.docs.filter((d) => !keep.has(d.id))
 
   await commitInBatches(db, rows, (batch, row) => {
-    batch.set(db.doc(`leaderboard/${row.uid}`), { ...row, updatedAt }, { merge: false })
+    batch.set(board.doc(row.uid), { ...row, updatedAt }, { merge: false })
+  })
+  await commitInBatches(db, stale, (batch, d) => {
+    batch.delete(d.ref)
   })
   return rows.length
 }
@@ -200,24 +289,48 @@ async function main(): Promise<void> {
   console.log(`[ingest] upserting ${matches.length} matches…`)
   await upsertMatches(db, matches)
 
+  const standingsGroups = await upsertStandings(db, standingsRes)
+  console.log(`[ingest] upserted ${standingsGroups} group standings.`)
+
+  // FINISHED full-time results, keyed by matchId — shared across all groups.
+  const finished = new Map<string, { home: number; away: number }>()
+  for (const m of matches) {
+    if (m.status !== 'FINISHED') continue
+    if (m.score.home == null || m.score.away == null) continue
+    finished.set(m.matchId, { home: m.score.home, away: m.score.away })
+  }
+
   const cfg = await loadScoringConfig(db)
-  const graded = await gradeFinishedMatches(db, matches, cfg)
-  console.log(`[ingest] graded ${graded} predictions (scoringVersion ${SCORING_VERSION}).`)
 
-  const boardSize = await rebuildLeaderboard(db)
-  console.log(`[ingest] rebuilt leaderboard for ${boardSize} participants.`)
-
-  const groups = await upsertStandings(db, standingsRes)
-  console.log(`[ingest] upserted ${groups} group standings.`)
+  // Per-group grading + leaderboard (multi-tenant — ticket 012).
+  const groupsSnap = await db.collection('groups').get()
+  let totalGraded = 0
+  let totalBoardRows = 0
+  for (const groupDoc of groupsSnap.docs) {
+    const ctx = await resolveGroupContext(db, groupDoc)
+    const graded = await gradeGroupPredictions(db, ctx, finished, cfg)
+    const rows = await rebuildGroupLeaderboard(db, ctx)
+    totalGraded += graded
+    totalBoardRows += rows
+    console.log(
+      `[ingest] group ${ctx.groupId}: ${ctx.participants.length} participants, ` +
+        `graded ${graded} predictions, leaderboard ${rows} rows.`,
+    )
+  }
+  console.log(
+    `[ingest] graded ${totalGraded} predictions across ${groupsSnap.size} groups ` +
+      `(scoringVersion ${SCORING_VERSION}).`,
+  )
 
   await db.doc('config/meta').set(
     {
       lastIngestRun: {
         at: Timestamp.now(),
         matches: matches.length,
-        gradedPredictions: graded,
-        leaderboardSize: boardSize,
-        standingsGroups: groups,
+        groups: groupsSnap.size,
+        gradedPredictions: totalGraded,
+        leaderboardRows: totalBoardRows,
+        standingsGroups,
         scoringVersion: SCORING_VERSION,
         ok: true,
       },

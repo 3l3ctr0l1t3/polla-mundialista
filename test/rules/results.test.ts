@@ -27,7 +27,6 @@ beforeEach(async () => {
       kickoff: Timestamp.now(),
       status: 'TIMED',
     })
-    await setDoc(doc(adb, 'leaderboard', UID), { uid: UID, totalPoints: 0 })
     await setDoc(doc(adb, 'standings', 'A'), { groupId: 'A', table: [] })
     await setDoc(doc(adb, 'config', 'scoring'), {
       exact: 5,
@@ -37,10 +36,12 @@ beforeEach(async () => {
   })
 })
 
+// Ticket 012: leaderboards moved UNDER a group (groups/{gid}/leaderboard) and are no
+// longer a top-level collection. Per-group leaderboard read/write is covered in
+// groups.test.ts. The remaining GLOBAL admin-SDK-only collections are below.
 describe('two-writers rule — clients may read but never write public collections', () => {
   const cases: Array<{ name: string; path: [string, string] }> = [
     { name: 'matches', path: ['matches', '529001'] },
-    { name: 'leaderboard', path: ['leaderboard', UID] },
     { name: 'standings', path: ['standings', 'A'] },
     { name: 'config', path: ['config', 'scoring'] },
   ]

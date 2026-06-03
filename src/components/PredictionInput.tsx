@@ -27,11 +27,13 @@ import Typography from '@mui/material/Typography'
 import AddIcon from '@mui/icons-material/Add'
 import RemoveIcon from '@mui/icons-material/Remove'
 import { setDoc, serverTimestamp } from 'firebase/firestore'
-import { predictionDoc } from '../firebase/db'
+import { groupPredictionDoc } from '../firebase/db'
 import { useAuth } from '../auth/useAuth'
 import type { Match, Prediction } from '../shared/types'
 
 export interface PredictionInputProps {
+  /** The group this prediction belongs to (predictions are per-group, ticket 012). */
+  gid: string
   match: Match
   /** The user's existing saved prediction for this match, if any (prefills the steppers). */
   existing?: Prediction
@@ -97,7 +99,7 @@ function GoalStepper({ label, value, disabled, onChange }: StepperProps) {
   )
 }
 
-export function PredictionInput({ match, existing, now }: PredictionInputProps) {
+export function PredictionInput({ gid, match, existing, now }: PredictionInputProps) {
   const { user } = useAuth()
   const [homeGoals, setHomeGoals] = useState<number>(existing?.homeGoals ?? 0)
   const [awayGoals, setAwayGoals] = useState<number>(existing?.awayGoals ?? 0)
@@ -120,7 +122,7 @@ export function PredictionInput({ match, existing, now }: PredictionInputProps) 
     if (!user || locked) return
     setSaving(true)
     try {
-      const ref = predictionDoc(user.uid, match.matchId)
+      const ref = groupPredictionDoc(gid, user.uid, match.matchId)
       // `createdAt` only on first write; `updatedAt` always. Never points/breakdown.
       const payload: Partial<Prediction> = {
         uid: user.uid,

@@ -1,0 +1,78 @@
+{
+  "_comment": "OFFLINE fixture for the per-group ingestion test (ticket 012). Two groups with OVERLAPPING users (u_ana, u_beto) but DIFFERENT predictions per group, so grading + leaderboards must stay isolated. Owner docs are IMPLICIT: there is NO members entry for a group's ownerUid — the owner is treated as an approved admin participant. Finished fixtures (from sample/matches.json): 500001 = 2-1 home, 500002 = 1-1 draw, 500003 = 0-2 away. 500004 is IN_PLAY and must never be graded.",
+  "groups": [
+    {
+      "groupId": "g_amigos",
+      "ownerUid": "u_ana",
+      "members": [
+        {
+          "uid": "u_beto",
+          "displayName": "Beto",
+          "photoURL": "https://x/b.png",
+          "role": "member",
+          "status": "approved"
+        },
+        {
+          "uid": "u_caro",
+          "displayName": "Caro",
+          "photoURL": null,
+          "role": "member",
+          "status": "approved"
+        },
+        {
+          "uid": "u_pending",
+          "displayName": "Pendiente",
+          "photoURL": null,
+          "role": "member",
+          "status": "pending"
+        }
+      ],
+      "predictions": [
+        { "uid": "u_ana", "matchId": "500001", "homeGoals": 2, "awayGoals": 1 },
+        { "uid": "u_ana", "matchId": "500002", "homeGoals": 1, "awayGoals": 1 },
+        { "uid": "u_ana", "matchId": "500003", "homeGoals": 1, "awayGoals": 2 },
+        { "uid": "u_beto", "matchId": "500001", "homeGoals": 3, "awayGoals": 2 },
+        { "uid": "u_beto", "matchId": "500002", "homeGoals": 1, "awayGoals": 1 },
+        { "uid": "u_beto", "matchId": "500003", "homeGoals": 0, "awayGoals": 1 },
+        { "uid": "u_caro", "matchId": "500001", "homeGoals": 1, "awayGoals": 0 },
+        { "uid": "u_caro", "matchId": "500004", "homeGoals": 2, "awayGoals": 2 },
+        { "uid": "u_pending", "matchId": "500001", "homeGoals": 2, "awayGoals": 1 }
+      ]
+    },
+    {
+      "groupId": "g_oficina",
+      "ownerUid": "u_dani",
+      "members": [
+        {
+          "uid": "u_dani",
+          "displayName": "Dani",
+          "photoURL": null,
+          "role": "admin",
+          "status": "approved"
+        },
+        {
+          "uid": "u_ana",
+          "displayName": "Ana",
+          "photoURL": null,
+          "role": "member",
+          "status": "approved"
+        },
+        {
+          "uid": "u_beto",
+          "displayName": "Beto",
+          "photoURL": "https://x/b.png",
+          "role": "member",
+          "status": "approved"
+        }
+      ],
+      "predictions": [
+        { "uid": "u_ana", "matchId": "500001", "homeGoals": 0, "awayGoals": 0 },
+        { "uid": "u_ana", "matchId": "500003", "homeGoals": 0, "awayGoals": 2 },
+        { "uid": "u_beto", "matchId": "500002", "homeGoals": 1, "awayGoals": 1 },
+        { "uid": "u_dani", "matchId": "500001", "homeGoals": 2, "awayGoals": 1 },
+        { "uid": "u_dani", "matchId": "500002", "homeGoals": 1, "awayGoals": 1 },
+        { "uid": "u_dani", "matchId": "500003", "homeGoals": 0, "awayGoals": 2 }
+      ]
+    }
+  ]
+}

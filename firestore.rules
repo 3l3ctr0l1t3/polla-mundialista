@@ -1,79 +1,92 @@
 rules_version = '2';
 
-// Polla Mundialista security rules — the integrity backbone (ticket 003).
+// Polla Mundialista security rules — the integrity backbone.
 //
 // TWO-WRITERS RULE (constitution §3):
-//   - matches / leaderboard / standings / config are written ONLY by the ingestion
+//   - matches / standings / config are GLOBAL and written ONLY by the ingestion
 //     service account (admin SDK, which bypasses these rules). Clients are read-only.
-//   - the browser writes ONLY the signed-in user's own prediction, and ONLY before kickoff.
+//   - per-group leaderboards (groups/{gid}/leaderboard) are likewise admin-SDK-only.
+//   - the browser writes ONLY the signed-in user's own prediction, in a group they
+//     belong to, and ONLY before kickoff.
 //
 // AUTHORITATIVE KICKOFF LOCK (constitution §4):
 //   prediction create/update is allowed only while `request.time < match.kickoff`,
-//   using SERVER time. The client clock is never trusted.
+//   using SERVER time and the GLOBAL matches/{matchId} doc. The client clock is never
+//   trusted.
 //
-// MEMBERSHIP MODEL (ticket 011):
-//   membership is the `members/{uid}` request->approve model, NOT the old
-//   `config/allowlist`. A user creates their own `members/{uid}` with status
-//   'pending'; only an admin may change status. `config/allowlist` is DEPRECATED
-//   and no longer consulted by these rules (it remains readable for legacy reads).
+// MULTI-TENANT / GROUP MODEL (ticket 012):
+//   Membership, predictions, and leaderboards are PER GROUP, under groups/{gid}.
+//   App access is OPEN: any signed-in Google user may read group metadata and create a
+//   group. Gating is per-group.
 //
-// COST NOTE: each prediction create/update performs ONE get() on the target match doc
-//   (the kickoff lock) plus membership get()s: isAdmin() does one get() on users/{uid},
-//   and (only if not admin) isApprovedMember() does one get() on members/{uid}. So a
-//   prediction write does ~2-3 extra reads. members/{uid} admin writes additionally
-//   get() users/{uid} via isAdmin(). Acceptable at this scale (a few dozen participants
-//   x 104 matches). Reads of public collections add no get()s.
+//   OWNER-DERIVED MEMBERSHIP: the group owner is recorded ONLY by groups/{gid}.ownerUid —
+//   there is NO members/{owner} doc. Creating a group is a SINGLE doc write (no batch,
+//   no self-member-create). Member docs exist only for JOINERS (pending -> approved).
+//     isOwner(gid)       = groups/{gid}.ownerUid == auth.uid
+//     isGroupMember(gid) = isOwner(gid) || (member doc exists && status == 'approved')
+//     isGroupAdmin(gid)  = isOwner(gid) || (member doc exists && role == 'admin'
+//                                            && status == 'approved')
+//
+// COST NOTE: group lookups add get()s. A prediction create/update performs:
+//   1 get() on the GLOBAL match doc (kickoff lock) + isGroupMember(gid) which does
+//   1 get() on groups/{gid} (ownerUid) and, only if not owner, 1 get()/exists() on
+//   groups/{gid}/members/{uid} — so ~2-3 extra reads. Member-doc admin writes do
+//   isGroupAdmin(gid) = up to 2 get()s (group doc + member doc). Reads of global public
+//   collections add no get()s. Acceptable at this scale (a few dozen members/group).
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // ---- helpers ------------------------------------------------------------
+    // ---- generic helpers ----------------------------------------------------
 
     function isSignedIn() {
       return request.auth != null;
-    }
-
-    // True if the signed-in user's users/{uid} doc has isAdmin == true. One get().
-    function isAdmin() {
-      return isSignedIn()
-        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
-        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
-    }
-
-    // True if the signed-in user has an approved members/{uid} request. One get().
-    function isApprovedMember() {
-      return isSignedIn()
-        && exists(/databases/$(database)/documents/members/$(request.auth.uid))
-        && get(/databases/$(database)/documents/members/$(request.auth.uid)).data.status == 'approved';
-    }
-
-    // Membership gate for predictions (ticket 011): an admin, or an approved member.
-    // Replaces the deprecated config/allowlist lookup. Admins are always members.
-    function isMember() {
-      return isAdmin() || isApprovedMember();
-    }
-
-    function matchKickoff(matchId) {
-      return get(/databases/$(database)/documents/matches/$(matchId)).data.kickoff;
-    }
-
-    // True while the referenced match exists and has not kicked off (server time).
-    function beforeKickoff(matchId) {
-      return exists(/databases/$(database)/documents/matches/$(matchId))
-        && request.time < matchKickoff(matchId);
     }
 
     function isInt0to30(v) {
       return v is int && v >= 0 && v <= 30;
     }
 
-    // ---- public, read-only collections (admin SDK writes only) --------------
+    // ---- group membership helpers (owner-derived) ---------------------------
 
-    match /matches/{matchId} {
-      allow read: if isSignedIn();
-      allow write: if false;
+    function groupData(gid) {
+      return get(/databases/$(database)/documents/groups/$(gid)).data;
     }
 
-    match /leaderboard/{uid} {
+    // The group owner is implicit (no member doc). One get() on the group doc.
+    function isOwner(gid) {
+      return isSignedIn()
+        && exists(/databases/$(database)/documents/groups/$(gid))
+        && groupData(gid).ownerUid == request.auth.uid;
+    }
+
+    function memberDocExists(gid) {
+      return exists(/databases/$(database)/documents/groups/$(gid)/members/$(request.auth.uid));
+    }
+
+    function memberDocData(gid) {
+      return get(/databases/$(database)/documents/groups/$(gid)/members/$(request.auth.uid)).data;
+    }
+
+    // Owner OR an approved member doc. Up to 2 get()s (group doc, then member doc).
+    function isGroupMember(gid) {
+      return isOwner(gid)
+        || (isSignedIn() && memberDocExists(gid) && memberDocData(gid).status == 'approved');
+    }
+
+    // Owner OR an approved member doc with role == 'admin'.
+    function isGroupAdmin(gid) {
+      return isOwner(gid)
+        || (
+          isSignedIn()
+          && memberDocExists(gid)
+          && memberDocData(gid).status == 'approved'
+          && memberDocData(gid).role == 'admin'
+        );
+    }
+
+    // ---- global, read-only collections (admin SDK writes only) --------------
+
+    match /matches/{matchId} {
       allow read: if isSignedIn();
       allow write: if false;
     }
@@ -88,9 +101,10 @@ service cloud.firestore {
       allow write: if false;
     }
 
-    // ---- users --------------------------------------------------------------
+    // ---- users (global profiles) --------------------------------------------
     // Owner reads/creates/updates their own profile. `isAdmin` may never be set or
-    // changed by a client (admin flag is granted out-of-band via the admin SDK).
+    // changed by a client. (Note: app-level admin is deprecated by ticket 012 — admin
+    // is now per-group — but the field is still guarded against tampering.)
 
     match /users/{uid} {
       allow read: if isSignedIn() && request.auth.uid == uid;
@@ -103,7 +117,6 @@ service cloud.firestore {
       allow update: if isSignedIn()
         && request.auth.uid == uid
         && request.resource.data.uid == uid
-        // isAdmin must be absent or unchanged from its stored value.
         && (
           !('isAdmin' in request.resource.data.keys())
           || request.resource.data.isAdmin == resource.data.isAdmin
@@ -112,70 +125,121 @@ service cloud.firestore {
       allow delete: if false;
     }
 
-    // ---- members ------------------------------------------------------------
-    // Self-enrollment + admin approval (ticket 011). Doc id is the user's uid.
-    //   - create: a signed-in user requests to join their OWN doc as 'pending';
-    //     they may NOT set decidedBy/decidedAt and may NOT self-approve.
-    //   - update: the owner may ONLY re-request after a rejection (rejected ->
-    //     pending, no decided* fields); an admin may set any status and stamps
-    //     decidedBy == their uid + decidedAt. A non-admin can never reach 'approved'.
-    //   - read: owner or admin.
-    //   - delete: admin only.
-
-    function memberDecidedFieldsAbsentOrNull() {
-      return (
-        !('decidedBy' in request.resource.data.keys())
-        || request.resource.data.decidedBy == null
-      ) && (
-        !('decidedAt' in request.resource.data.keys())
-        || request.resource.data.decidedAt == null
-      );
-    }
-
-    match /members/{uid} {
-      allow read: if isSignedIn()
-        && (request.auth.uid == uid || isAdmin());
-
-      // Self-request to join: own doc, uid matches, starts pending, no decision stamped.
-      allow create: if isSignedIn()
-        && request.auth.uid == uid
-        && request.resource.data.uid == uid
-        && request.resource.data.status == 'pending'
-        && memberDecidedFieldsAbsentOrNull();
-
-      allow update: if isSignedIn() && (
-        // (a) owner re-requesting after a rejection: rejected -> pending only.
-        (
-          request.auth.uid == uid
-          && resource.data.status == 'rejected'
-          && request.resource.data.status == 'pending'
-          && request.resource.data.uid == uid
-          && memberDecidedFieldsAbsentOrNull()
-        )
-        // (b) an admin deciding: any status, stamping themselves as the decider.
-        || (
-          isAdmin()
-          && request.resource.data.uid == resource.data.uid
-          && request.resource.data.decidedBy == request.auth.uid
-          && request.resource.data.decidedAt != null
-        )
-      );
-
-      allow delete: if isAdmin();
-    }
-
     // ---- serverTime ---------------------------------------------------------
-    // Throwaway per-user doc used by useServerTime to measure the client/server
-    // clock offset (write serverTimestamp(), read it back). Owner-only; carries no
-    // sensitive data. Makes the kickoff-lock countdown immune to a wrong device clock.
+    // Throwaway per-user doc used by useServerTime to measure the client/server clock
+    // offset. Owner-only; carries no sensitive data.
 
     match /serverTime/{uid} {
       allow read, write: if isSignedIn() && request.auth.uid == uid;
     }
 
-    // ---- predictions --------------------------------------------------------
-    // Doc id is `{uid}_{matchId}`. Owner-only. Kickoff-locked. No points/breakdown
-    // tampering. Members only.
+    // ---- groups -------------------------------------------------------------
+    // Open app access: any signed-in user may read group metadata (needed for the join
+    // page) and create a group they own. Group metadata isn't sensitive (knowing a gid
+    // only lets you *request* to join). Owner-only update/delete.
+
+    match /groups/{gid} {
+      allow read: if isSignedIn();
+
+      // Create: signed-in user creates a group with themselves as owner (single write).
+      allow create: if isSignedIn()
+        && request.resource.data.ownerUid == request.auth.uid;
+
+      allow update, delete: if isOwner(gid);
+
+      // ---- groups/{gid}/members ---------------------------------------------
+      // Joiners only (the owner is implicit via groups/{gid}.ownerUid).
+      //   - create: signed-in user self-requests their OWN doc as role 'member',
+      //     status 'pending', no decision stamped. They may NOT self-approve nor
+      //     grant themselves 'admin'.
+      //   - update: (a) owner re-request after rejection (rejected -> pending, own doc,
+      //     no decision stamped); or (b) a GROUP ADMIN deciding (sets status, stamps
+      //     decidedBy == auth.uid and decidedAt != null, may set role). A non-admin can
+      //     NEVER reach 'approved' or 'admin'.
+      //   - read: own doc OR a group member (so group admins / members can see the roster).
+      //   - delete: group admin only.
+
+      match /members/{uid} {
+        allow read: if isSignedIn()
+          && (request.auth.uid == uid || isGroupMember(gid));
+
+        // Self-request to join: own doc, uid matches, role 'member', pending, no decision.
+        allow create: if isSignedIn()
+          && request.auth.uid == uid
+          && request.resource.data.uid == uid
+          && request.resource.data.role == 'member'
+          && request.resource.data.status == 'pending'
+          && (
+            !('decidedBy' in request.resource.data.keys())
+            || request.resource.data.decidedBy == null
+          )
+          && (
+            !('decidedAt' in request.resource.data.keys())
+            || request.resource.data.decidedAt == null
+          );
+
+        allow update: if isSignedIn() && (
+          // (a) owner re-requesting after a rejection: rejected -> pending only.
+          (
+            request.auth.uid == uid
+            && resource.data.status == 'rejected'
+            && request.resource.data.status == 'pending'
+            && request.resource.data.uid == uid
+            && (
+              !('decidedBy' in request.resource.data.keys())
+              || request.resource.data.decidedBy == null
+            )
+            && (
+              !('decidedAt' in request.resource.data.keys())
+              || request.resource.data.decidedAt == null
+            )
+          )
+          // (b) a group admin deciding: stamps themselves as the decider.
+          || (
+            isGroupAdmin(gid)
+            && request.resource.data.uid == resource.data.uid
+            && request.resource.data.decidedBy == request.auth.uid
+            && request.resource.data.decidedAt != null
+          )
+        );
+
+        allow delete: if isGroupAdmin(gid);
+      }
+
+      // ---- groups/{gid}/predictions -----------------------------------------
+      // Doc id is `{uid}_{matchId}`. Owner-only read/write. Kickoff-locked against the
+      // GLOBAL matches/{matchId} doc. No points/breakdown tampering. Group members only.
+
+      match /predictions/{predId} {
+        allow read: if isSignedIn()
+          && resource.data.uid == request.auth.uid;
+
+        allow create: if isGroupMember(gid)
+          && request.auth.uid == request.resource.data.uid
+          && predId == request.auth.uid + '_' + request.resource.data.matchId
+          && predictionShapeValid()
+          && beforeKickoff(request.resource.data.matchId);
+
+        allow update: if isGroupMember(gid)
+          && request.auth.uid == request.resource.data.uid
+          && predId == request.auth.uid + '_' + request.resource.data.matchId
+          && request.resource.data.matchId == resource.data.matchId
+          && predictionShapeValid()
+          && beforeKickoff(request.resource.data.matchId);
+
+        allow delete: if false;
+      }
+
+      // ---- groups/{gid}/leaderboard -----------------------------------------
+      // Per-group aggregate. Group members read; admin SDK is the only writer.
+
+      match /leaderboard/{uid} {
+        allow read: if isGroupMember(gid);
+        allow write: if false;
+      }
+    }
+
+    // ---- prediction validation helpers (global; reference GLOBAL matches) ---
 
     function predictionShapeValid() {
       return request.resource.data.uid is string
@@ -187,29 +251,14 @@ service cloud.firestore {
         && !('breakdown' in request.resource.data.keys());
     }
 
-    function ownsPrediction(predId) {
-      return request.auth.uid == request.resource.data.uid
-        // doc id must be exactly `{uid}_{matchId}`.
-        && predId == request.auth.uid + '_' + request.resource.data.matchId;
+    function matchKickoff(matchId) {
+      return get(/databases/$(database)/documents/matches/$(matchId)).data.kickoff;
     }
 
-    match /predictions/{predId} {
-      allow read: if isSignedIn()
-        && resource.data.uid == request.auth.uid;
-
-      allow create: if isMember()
-        && ownsPrediction(predId)
-        && predictionShapeValid()
-        && beforeKickoff(request.resource.data.matchId);
-
-      allow update: if isMember()
-        && ownsPrediction(predId)
-        // matchId is immutable across an update.
-        && request.resource.data.matchId == resource.data.matchId
-        && predictionShapeValid()
-        && beforeKickoff(request.resource.data.matchId);
-
-      allow delete: if false;
+    // True while the referenced GLOBAL match exists and has not kicked off (server time).
+    function beforeKickoff(matchId) {
+      return exists(/databases/$(database)/documents/matches/$(matchId))
+        && request.time < matchKickoff(matchId);
     }
   }
 }

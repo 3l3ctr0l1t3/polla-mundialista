@@ -12,13 +12,16 @@ vi.mock('firebase/firestore', () => ({
   setDoc: (...args: unknown[]) => setDocMock(...args),
 }))
 
-const predictionDocMock = vi.fn((uid: string, matchId: string) => ({ __ref: `${uid}_${matchId}` }))
+const groupPredictionDocMock = vi.fn((gid: string, uid: string, matchId: string) => ({
+  __ref: `${gid}/${uid}_${matchId}`,
+}))
 vi.mock('../firebase/db', () => ({
-  predictionDoc: (uid: string, matchId: string) => predictionDocMock(uid, matchId),
+  groupPredictionDoc: (gid: string, uid: string, matchId: string) =>
+    groupPredictionDocMock(gid, uid, matchId),
 }))
 
 vi.mock('../auth/useAuth', () => ({
-  useAuth: () => ({ user: { uid: 'u1', email: 'a@b.com' }, loading: false, isMember: true }),
+  useAuth: () => ({ user: { uid: 'u1', email: 'a@b.com' }, loading: false }),
 }))
 
 // --- fixtures --------------------------------------------------------------
@@ -45,12 +48,12 @@ const afterKickoff = () => KICKOFF_MS + 60_000 // 1 min after
 beforeEach(() => {
   setDocMock.mockClear()
   setDocMock.mockResolvedValue(undefined)
-  predictionDocMock.mockClear()
+  groupPredictionDocMock.mockClear()
 })
 
 describe('PredictionInput', () => {
   it('allows editing the score before kickoff', () => {
-    render(<PredictionInput match={makeMatch()} now={beforeKickoff} />)
+    render(<PredictionInput gid="g1" match={makeMatch()} now={beforeKickoff} />)
     const home = screen.getByLabelText('HOM goals') as HTMLInputElement
     const away = screen.getByLabelText('AWY goals') as HTMLInputElement
     expect(home).not.toBeDisabled()
@@ -59,14 +62,14 @@ describe('PredictionInput', () => {
   })
 
   it('disables inputs at/after kickoff', () => {
-    render(<PredictionInput match={makeMatch()} now={afterKickoff} />)
+    render(<PredictionInput gid="g1" match={makeMatch()} now={afterKickoff} />)
     expect(screen.getByLabelText('HOM goals')).toBeDisabled()
     expect(screen.getByLabelText('AWY goals')).toBeDisabled()
     expect(screen.getByRole('button', { name: /save prediction/i })).toBeDisabled()
   })
 
   it('writes a new prediction with the right shape (createdAt + updatedAt, merge)', async () => {
-    render(<PredictionInput match={makeMatch()} now={beforeKickoff} />)
+    render(<PredictionInput gid="g1" match={makeMatch()} now={beforeKickoff} />)
 
     // Bump home to 2 and away to 1 via the increment buttons.
     fireEvent.click(screen.getByLabelText('Increase HOM goals'))
@@ -77,8 +80,8 @@ describe('PredictionInput', () => {
 
     await waitFor(() => expect(setDocMock).toHaveBeenCalledTimes(1))
     const [ref, payload, options] = setDocMock.mock.calls[0]
-    expect(predictionDocMock).toHaveBeenCalledWith('u1', 'm42')
-    expect(ref).toEqual({ __ref: 'u1_m42' })
+    expect(groupPredictionDocMock).toHaveBeenCalledWith('g1', 'u1', 'm42')
+    expect(ref).toEqual({ __ref: 'g1/u1_m42' })
     expect(payload).toEqual({
       uid: 'u1',
       matchId: 'm42',
@@ -99,7 +102,7 @@ describe('PredictionInput', () => {
       createdAt: { toMillis: () => 0 } as Prediction['createdAt'],
       updatedAt: { toMillis: () => 0 } as Prediction['updatedAt'],
     }
-    render(<PredictionInput match={makeMatch()} existing={existing} now={beforeKickoff} />)
+    render(<PredictionInput gid="g1" match={makeMatch()} existing={existing} now={beforeKickoff} />)
 
     fireEvent.click(screen.getByRole('button', { name: /update prediction/i }))
 
@@ -116,7 +119,7 @@ describe('PredictionInput', () => {
       Object.assign(new Error('denied'), { code: 'permission-denied' }),
     )
 
-    render(<PredictionInput match={makeMatch()} now={beforeKickoff} />)
+    render(<PredictionInput gid="g1" match={makeMatch()} now={beforeKickoff} />)
     fireEvent.click(screen.getByRole('button', { name: /save prediction/i }))
 
     expect(await screen.findByText(/already started/i)).toBeInTheDocument()

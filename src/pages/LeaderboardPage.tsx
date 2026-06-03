@@ -1,9 +1,9 @@
 /**
  * LeaderboardPage — the live ranked board (ticket 007).
  *
- * Reads the public aggregate via `useLeaderboard` (an `onSnapshot` listener) and
- * renders a ranked list. Rankings are computed by the ingestion job; this page is a
- * pure reader and updates live without a refresh when new aggregates are written.
+ * Reads the group's public aggregate via `useGroupLeaderboard(gid)` (an `onSnapshot`
+ * listener) and renders a ranked list. Rankings are computed by the ingestion job per
+ * group; this page is a pure reader and updates live when new aggregates are written.
  *
  * States: loading skeleton, error placeholder, and an empty state (the leaderboard is
  * empty until the ingestion job grades predictions and writes `leaderboard/{uid}`).
@@ -15,13 +15,15 @@ import List from '@mui/material/List'
 import Paper from '@mui/material/Paper'
 import Typography from '@mui/material/Typography'
 import LeaderboardIcon from '@mui/icons-material/EmojiEvents'
-import { useLeaderboard } from '../hooks/useLeaderboard'
+import { useGroupLeaderboard } from '../hooks/useGroupLeaderboard'
 import { LeaderboardRow } from '../components/LeaderboardRow'
 import { EmptyState, ErrorState, LoadingState } from '../components/states'
 import { useAuth } from '../auth/useAuth'
+import { useGroup } from '../group/useGroup'
 
 export function LeaderboardPage() {
-  const { entries, loading, error } = useLeaderboard()
+  const { gid } = useGroup()
+  const { entries, loading, error } = useGroupLeaderboard(gid)
   const { user } = useAuth()
 
   // A rank is "tied" when more than one entry shares it (dense rank from ingestion).

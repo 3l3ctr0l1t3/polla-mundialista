@@ -1,18 +1,14 @@
 /**
- * MembershipGate — the screen shown to a signed-in user who is NOT yet a member.
+ * MembershipGate — shown when a signed-in user opens `/g/:gid/*` but is NOT yet an
+ * approved member of THAT group (ticket 012, per-group generalization of ticket 011).
  *
- * Three sub-states keyed off `memberStatus` from `useAuth()`:
- *   - `null`     → "Request to join": a button that self-creates `members/{uid}` with
- *                  `status: 'pending'`.
- *   - `pending`  → "Awaiting approval": informational, with sign-out.
- *   - `rejected` → "Not approved": a re-request button that flips the doc back to
- *                  `pending` (allowed for the owner by `firestore.rules`).
+ * Keys off the viewer's status from `useGroup()` (owner/approved never reach here):
+ *   - `null`     → "Request to join": self-creates `groups/{gid}/members/{uid}` pending.
+ *   - `pending`  → "Awaiting approval".
+ *   - `rejected` → "Request again": flips the member doc back to pending.
  *
- * The signed-OUT case is handled by `LoginPage`, not here. The `approved`/admin case
- * never reaches this component (App routes members to the app shell).
- *
- * Writes are convenience-gated in the UI; `firestore.rules` is the real authority. A
- * rejected write surfaces in the snackbar.
+ * Writes match the rules-enforced shapes. A rejected write surfaces in the snackbar;
+ * `firestore.rules` is the real authority.
  */
 import { useState } from 'react'
 import Box from '@mui/material/Box'
@@ -28,33 +24,36 @@ import GroupAddIcon from '@mui/icons-material/GroupAdd'
 import HourglassTopIcon from '@mui/icons-material/HourglassTop'
 import DoNotDisturbIcon from '@mui/icons-material/DoNotDisturb'
 import { serverTimestamp, setDoc, updateDoc } from 'firebase/firestore'
-import { signOutUser } from '../firebase/auth'
-import { memberDoc } from '../firebase/db'
+import { Link as RouterLink } from 'react-router-dom'
+import { groupMemberDoc } from '../firebase/db'
 import { useAuth } from '../auth/useAuth'
+import { useGroup } from '../group/useGroup'
 
 export function MembershipGate() {
-  const { user, memberStatus } = useAuth()
+  const { user } = useAuth()
+  const { gid, group, status } = useGroup()
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  // App only mounts this for a signed-in non-member; guard defensively anyway.
   if (!user) return null
+
+  const groupName = group?.name ?? 'this group'
 
   const handleRequestToJoin = async () => {
     setBusy(true)
     setError(null)
     try {
-      await setDoc(memberDoc(user.uid), {
+      await setDoc(groupMemberDoc(gid, user.uid), {
         uid: user.uid,
         displayName: user.displayName ?? '',
         email: user.email ?? '',
         photoURL: user.photoURL ?? null,
+        role: 'member',
         status: 'pending',
-        requestedAt: serverTimestamp(),
+        requestedAt: serverTimestamp() as never,
         decidedAt: null,
         decidedBy: null,
       })
-      // The members/{uid} onSnapshot in AuthProvider flips us to the pending view.
     } catch {
       setError('Could not send your request. Please try again.')
     } finally {
@@ -66,7 +65,7 @@ export function MembershipGate() {
     setBusy(true)
     setError(null)
     try {
-      await updateDoc(memberDoc(user.uid), {
+      await updateDoc(groupMemberDoc(gid, user.uid), {
         status: 'pending',
         decidedAt: null,
         decidedBy: null,
@@ -78,44 +77,28 @@ export function MembershipGate() {
     }
   }
 
-  const handleSignOut = async () => {
-    setBusy(true)
-    try {
-      await signOutUser()
-    } catch {
-      setError('Could not sign out. Please try again.')
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  // Pick the icon + copy for the current sub-state.
   const view =
-    memberStatus === 'pending'
+    status === 'pending'
       ? {
           icon: <HourglassTopIcon fontSize="inherit" />,
           color: 'info.main' as const,
           heading: 'Request pending',
-          body: 'Your request to join is awaiting approval from the organizer. You’ll get in as soon as it’s approved.',
+          body: `Your request to join ${groupName} is awaiting approval from its admin.`,
           primary: null,
         }
-      : memberStatus === 'rejected'
+      : status === 'rejected'
         ? {
             icon: <DoNotDisturbIcon fontSize="inherit" />,
             color: 'error.main' as const,
             heading: 'Not approved',
-            body: 'Your request to join wasn’t approved. If you think this was a mistake, you can ask again.',
-            primary: {
-              label: 'Request again',
-              onClick: handleReRequest,
-              icon: <GroupAddIcon />,
-            },
+            body: `Your request to join ${groupName} wasn't approved. You can ask again.`,
+            primary: { label: 'Request again', onClick: handleReRequest, icon: <GroupAddIcon /> },
           }
         : {
             icon: <GroupAddIcon fontSize="inherit" />,
             color: 'primary.main' as const,
-            heading: 'Request to join',
-            body: 'You’re signed in but not yet part of the pool. Send a request and the organizer will let you in.',
+            heading: `Join ${groupName}`,
+            body: "You're not a member of this group yet. Send a request and its admin will let you in.",
             primary: {
               label: 'Request to join',
               onClick: handleRequestToJoin,
@@ -174,11 +157,12 @@ export function MembershipGate() {
               <Button
                 variant="outlined"
                 color="primary"
-                onClick={handleSignOut}
+                component={RouterLink}
+                to="/"
                 disabled={busy}
                 fullWidth
               >
-                Sign out
+                My Groups
               </Button>
             </Stack>
           </Stack>

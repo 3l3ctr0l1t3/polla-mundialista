@@ -24,18 +24,46 @@ export interface User {
   createdAt: Timestamp
 }
 
+/* ---------------------------------------------------------------- groups */
+
+/**
+ * `groups/{groupId}` — a multi-tenant pool (ticket 012).
+ *
+ * Any signed-in user can create a group, becoming its **owner**. The owner's
+ * membership is DERIVED from `ownerUid` (there is NO `members/{owner}` doc) — see
+ * the owner-derived membership model in `firestore.rules`. `inviteCode` backs an
+ * unguessable invite link; knowing it only lets a user *request* to join.
+ */
+export interface Group {
+  groupId: string
+  name: string
+  /** uid of the creator/owner. The owner is implicitly an approved admin (no member doc). */
+  ownerUid: string
+  /** Unguessable token for invite links; approval is still required. */
+  inviteCode: string
+  createdAt: Timestamp
+}
+
 /* -------------------------------------------------------------- members */
 
 /** A membership request's lifecycle state. */
 export type MemberStatus = 'pending' | 'approved' | 'rejected'
 
+/** A member's role within a group. The owner is implicitly `admin` (no member doc). */
+export type MemberRole = 'admin' | 'member'
+
 /**
- * `members/{uid}` — a self-enrollment request (ticket 011).
+ * `groups/{groupId}/members/{uid}` — a per-group self-enrollment request (ticket 012,
+ * generalizes ticket 011's top-level `members`).
  *
- * A signed-in user creates their own doc with `status: 'pending'`; an admin
- * approves/rejects it by setting `status` + `decidedBy`/`decidedAt`. Membership
- * for predictions is `isAdmin || members/{uid}.status === 'approved'`. This
- * replaces the deprecated `config/allowlist`.
+ * Member docs exist ONLY for JOINERS. A signed-in user creates their own doc with
+ * `role: 'member'`, `status: 'pending'`; a group admin (owner or a `role: 'admin'`
+ * approved member) approves/rejects by setting `status` + `decidedBy`/`decidedAt`
+ * (and may grant `role: 'admin'`). The group OWNER is NOT represented by a member
+ * doc — their membership/admin is derived from `groups/{groupId}.ownerUid`.
+ *
+ * Membership for that group's predictions is
+ * `isOwner(gid) || members/{uid}.status === 'approved'`.
  *
  * `decidedAt`/`decidedBy` are null while pending and may be set ONLY by an admin
  * (enforced in `firestore.rules`). A user may never self-approve.
@@ -45,6 +73,14 @@ export interface Member {
   displayName: string
   email: string
   photoURL: string | null
+  /**
+   * Granted by an admin on approval; self-requests must start as 'member'.
+   *
+   * Optional in TypeScript ONLY to keep the deprecated ticket-011 `MembershipGate`
+   * write compiling until Phase B repoints it; the `firestore.rules` REQUIRE
+   * `role == 'member'` on a self-request, so a real group member doc always has it.
+   */
+  role?: MemberRole
   status: MemberStatus
   requestedAt: Timestamp
   /** When an admin decided (approved/rejected); null while pending. */
@@ -119,11 +155,14 @@ export interface ScoreBreakdown {
 }
 
 /**
- * `predictions/{uid}_{matchId}` — one prediction per participant per match.
+ * `groups/{groupId}/predictions/{uid}_{matchId}` — one prediction per participant per
+ * match, PER GROUP (ticket 012). Same shape as the deprecated top-level
+ * `predictions/{uid}_{matchId}` (ticket 006), now nested under a group.
  *
- * `homeGoals`/`awayGoals` are written by the owning client before kickoff.
- * `points`/`breakdown` are written ONLY by the ingestion service account after grading;
- * clients may never set or change them (enforced in `firestore.rules`).
+ * `homeGoals`/`awayGoals` are written by the owning client before kickoff (the kickoff
+ * lock reads the GLOBAL `matches/{matchId}.kickoff`). `points`/`breakdown` are written
+ * ONLY by the ingestion service account after grading; clients may never set or change
+ * them (enforced in `firestore.rules`).
  */
 export interface Prediction {
   uid: string
@@ -141,8 +180,10 @@ export interface Prediction {
 /* ----------------------------------------------------------- leaderboard */
 
 /**
- * `leaderboard/{uid}` — denormalized standings for a participant.
- * Written only by the aggregation/ingestion service account; clients read-only.
+ * `groups/{groupId}/leaderboard/{uid}` — denormalized standings for a participant,
+ * PER GROUP (ticket 012). Same shape as the deprecated top-level `leaderboard/{uid}`,
+ * now nested under a group. Written only by the aggregation/ingestion service account;
+ * read by that group's members only.
  */
 export interface LeaderboardEntry {
   uid: string

@@ -18,7 +18,8 @@ import { matchesCol } from '../firebase/db'
 import { LoadingState, EmptyState, ErrorState } from '../components/states'
 import { CountdownToKickoff } from '../components/CountdownToKickoff'
 import { PredictionInput } from '../components/PredictionInput'
-import { useMyPredictions } from '../hooks/useMyPredictions'
+import { useGroupPredictions } from '../hooks/useGroupPredictions'
+import { useGroup } from '../group/useGroup'
 import { useServerTime } from '../hooks/useServerTime'
 import type { Match } from '../shared/types'
 
@@ -47,8 +48,9 @@ function useUpcomingMatches() {
 }
 
 export function PredictionsPage() {
+  const { gid } = useGroup()
   const { matches, error } = useUpcomingMatches()
-  const { predictions, error: predError } = useMyPredictions()
+  const { predictions, error: predError } = useGroupPredictions(gid)
   const { now } = useServerTime()
 
   if (error || predError) {
@@ -92,7 +94,12 @@ export function PredictionsPage() {
               </Typography>
               <CountdownToKickoff kickoffMs={match.kickoff.toMillis()} now={now} />
             </Box>
-            <PredictionInput match={match} existing={predictions[match.matchId]} now={now} />
+            <PredictionInput
+              gid={gid}
+              match={match}
+              existing={predictions[match.matchId]}
+              now={now}
+            />
           </Paper>
         ))}
       </Stack>

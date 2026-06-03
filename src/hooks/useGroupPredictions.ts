@@ -1,34 +1,34 @@
 /**
- * useMyPredictions — a real-time map of the signed-in participant's predictions.
+ * useGroupPredictions — the signed-in participant's predictions WITHIN a group (ticket 012).
  *
- * Subscribes via `onSnapshot` to `predictions where uid == me` and returns a
- * `Record<matchId, Prediction>` so a page can prefill each match's input in O(1).
- * The listener is cleaned up on unmount and whenever the signed-in uid changes.
+ * Subscribes via `onSnapshot` to `groups/{gid}/predictions where uid == me` and returns a
+ * `Record<matchId, Prediction>` so a page can prefill each match's input in O(1). The
+ * listener is cleaned up on unmount and whenever the gid or signed-in uid changes.
  *
- * Read-only: this hook never writes. Writes happen in `PredictionInput` (the owning
- * client writes only its own prediction, pre-kickoff — two-writers rule).
+ * Read-only: this hook never writes. Writes happen in `PredictionInput` (the owning client
+ * writes only its own prediction, pre-kickoff — two-writers rule).
  */
 import { useEffect, useState } from 'react'
 import { onSnapshot, query, where } from 'firebase/firestore'
-import { predictionsCol } from '../firebase/db'
+import { groupPredictionsCol } from '../firebase/db'
 import { useAuth } from '../auth/useAuth'
 import type { Prediction } from '../shared/types'
 
-export interface MyPredictions {
+export interface GroupPredictions {
   /** Predictions keyed by `matchId`. */
   predictions: Record<string, Prediction>
   loading: boolean
   error: Error | null
 }
 
-export function useMyPredictions(): MyPredictions {
+export function useGroupPredictions(gid: string): GroupPredictions {
   const { user } = useAuth()
   const [predictions, setPredictions] = useState<Record<string, Prediction>>({})
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<Error | null>(null)
 
   useEffect(() => {
-    if (!user) {
+    if (!user || !gid) {
       setPredictions({})
       setLoading(false)
       setError(null)
@@ -38,7 +38,7 @@ export function useMyPredictions(): MyPredictions {
     setLoading(true)
     setError(null)
 
-    const q = query(predictionsCol, where('uid', '==', user.uid))
+    const q = query(groupPredictionsCol(gid), where('uid', '==', user.uid))
     const unsubscribe = onSnapshot(
       q,
       (snap) => {
@@ -57,9 +57,9 @@ export function useMyPredictions(): MyPredictions {
     )
 
     return unsubscribe
-  }, [user])
+  }, [gid, user])
 
   return { predictions, loading, error }
 }
 
-export default useMyPredictions
+export default useGroupPredictions

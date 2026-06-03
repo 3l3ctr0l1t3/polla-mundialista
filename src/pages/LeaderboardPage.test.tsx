@@ -3,19 +3,23 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { ThemeProvider } from '@mui/material/styles'
 import { theme } from '../theme/theme'
 import type { LeaderboardEntry } from '../shared/types'
-import type { UseLeaderboardResult } from '../hooks/useLeaderboard'
+import type { UseGroupLeaderboardResult } from '../hooks/useGroupLeaderboard'
 
 // --- mocks -----------------------------------------------------------------
-// Mock the hook (its onSnapshot listener needs Firebase) and auth context.
+// Mock the hook (its onSnapshot listener needs Firebase), the group + auth contexts.
 
-let leaderboardState: UseLeaderboardResult
-vi.mock('../hooks/useLeaderboard', () => ({
-  useLeaderboard: () => leaderboardState,
+let leaderboardState: UseGroupLeaderboardResult
+vi.mock('../hooks/useGroupLeaderboard', () => ({
+  useGroupLeaderboard: () => leaderboardState,
+}))
+
+vi.mock('../group/useGroup', () => ({
+  useGroup: () => ({ gid: 'g1' }),
 }))
 
 let authUser: { uid: string } | null = null
 vi.mock('../auth/useAuth', () => ({
-  useAuth: () => ({ user: authUser, loading: false, isMember: true }),
+  useAuth: () => ({ user: authUser, loading: false }),
 }))
 
 import { LeaderboardPage } from './LeaderboardPage'

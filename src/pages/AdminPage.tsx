@@ -1,14 +1,14 @@
 /**
- * AdminPage — pending join-request approval (ticket 011, route `/admin`).
+ * AdminPage — pending join-request approval for a group (ticket 012, `/g/:gid/admin`).
  *
- * Lists every `members/{uid}` with `status == 'pending'` (live via `usePendingMembers`)
- * and lets an admin Approve or Reject each one. A decision writes:
- *   `{ status, decidedBy: <adminUid>, decidedAt: serverTimestamp() }`.
+ * Lists every `groups/{gid}/members/{uid}` with `status == 'pending'` (live via
+ * `usePendingMembers(gid)`) and lets a GROUP admin Approve or Reject each one. A decision
+ * writes `{ status, decidedBy: <adminUid>, decidedAt: serverTimestamp() }`.
  *
- * Only admins can read other members' docs or change `status` — enforced by
- * `firestore.rules`. The route is also guarded in `App.tsx` so non-admins never mount
- * this page; the security rules remain the real authority. A rejected write surfaces in
- * the snackbar.
+ * Only that group's admin can read other members' docs or change `status` — enforced by
+ * `firestore.rules`. The route is also guarded in `App.tsx` (group-admins only) so
+ * non-admins never mount this page; the security rules remain the real authority. A
+ * rejected write surfaces in the snackbar.
  */
 import { useState } from 'react'
 import Box from '@mui/material/Box'
@@ -24,8 +24,9 @@ import CheckIcon from '@mui/icons-material/Check'
 import CloseIcon from '@mui/icons-material/Close'
 import HowToRegIcon from '@mui/icons-material/HowToReg'
 import { serverTimestamp, updateDoc } from 'firebase/firestore'
-import { memberDoc } from '../firebase/db'
+import { groupMemberDoc } from '../firebase/db'
 import { useAuth } from '../auth/useAuth'
+import { useGroup } from '../group/useGroup'
 import { usePendingMembers } from '../hooks/usePendingMembers'
 import { LoadingState, EmptyState, ErrorState } from '../components/states'
 import type { Member, MemberStatus } from '../shared/types'
@@ -92,7 +93,8 @@ function PendingRow({
 
 export function AdminPage() {
   const { user } = useAuth()
-  const { members, loading, error } = usePendingMembers()
+  const { gid } = useGroup()
+  const { members, loading, error } = usePendingMembers(gid)
   const [pendingUid, setPendingUid] = useState<string | null>(null)
   const [snack, setSnack] = useState<string | null>(null)
 
@@ -103,12 +105,11 @@ export function AdminPage() {
     if (!user) return
     setPendingUid(targetUid)
     try {
-      await updateDoc(memberDoc(targetUid), {
+      await updateDoc(groupMemberDoc(gid, targetUid), {
         status,
         decidedBy: user.uid,
         decidedAt: serverTimestamp(),
       })
-      // The list re-renders live via usePendingMembers once status leaves 'pending'.
     } catch {
       setSnack('Could not save that decision. Please try again.')
     } finally {
@@ -117,7 +118,7 @@ export function AdminPage() {
   }
 
   return (
-    <Box>
+    <Box sx={{ maxWidth: 720, mx: 'auto', width: '100%' }}>
       <Stack direction="row" spacing={1} sx={{ alignItems: 'center', mb: 2 }}>
         <HowToRegIcon aria-hidden color="primary" />
         <Typography variant="h5" component="h2">
@@ -133,7 +134,7 @@ export function AdminPage() {
         <EmptyState
           icon={<HowToRegIcon fontSize="inherit" />}
           title="No pending requests"
-          description="When someone asks to join the pool, they’ll show up here for approval."
+          description="When someone asks to join this group, they'll show up here for approval."
         />
       ) : (
         <Stack spacing={1.5}>

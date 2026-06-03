@@ -1,7 +1,9 @@
-// Pure leaderboard aggregation.
+// Pure leaderboard aggregation — operates on a SINGLE group's data.
 //
-// Takes every GRADED prediction plus the participant profiles and produces a
-// dense-ranked array of leaderboard rows. No I/O — fully unit-testable offline.
+// Takes every GRADED prediction for one group plus that group's participant set
+// (the uid→displayName profiles of its approved members + implicit owner) and
+// produces a dense-ranked array of leaderboard rows. No I/O — fully
+// unit-testable offline. The orchestrator calls this once per `groups/{gid}`.
 //
 // Tiebreakers (in order): totalPoints DESC → exactCount DESC → outcomeCount DESC
 // → displayName ASC (case-insensitive, stable). Ranking is DENSE: equal rows
@@ -17,7 +19,11 @@ export interface GradedPrediction {
   breakdown?: ScoreBreakdown | null
 }
 
-/** Minimal participant profile slice. */
+/**
+ * Minimal participant profile slice. The participant set for a group is its
+ * approved members (`groups/{gid}/members` where status==='approved') UNION the
+ * implicit owner (`groups/{gid}.ownerUid`, who has no member doc).
+ */
 export interface ParticipantProfile {
   uid: string
   displayName: string
@@ -41,18 +47,20 @@ function isGraded(p: GradedPrediction): boolean {
 }
 
 /**
- * Aggregate graded predictions into dense-ranked leaderboard rows.
+ * Aggregate one group's graded predictions into dense-ranked leaderboard rows.
  *
- * Every participant in `users` gets a row (even with zero graded predictions),
- * so the board is complete. Predictions whose uid is not in `users` are skipped.
+ * Every participant in `participants` gets a row (even with zero graded
+ * predictions), so the board is complete. Predictions whose uid is not in the
+ * participant set are skipped — e.g. an ex-member whose predictions linger, or a
+ * uid that belongs only to a DIFFERENT group, guaranteeing cross-group isolation.
  */
 export function buildLeaderboard(
   predictions: GradedPrediction[],
-  users: ParticipantProfile[],
+  participants: ParticipantProfile[],
 ): LeaderboardRow[] {
   const byUid = new Map<string, LeaderboardRow>()
 
-  for (const u of users) {
+  for (const u of participants) {
     byUid.set(u.uid, {
       uid: u.uid,
       displayName: u.displayName,

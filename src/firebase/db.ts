@@ -21,6 +21,7 @@ import {
 import { app } from './config'
 import type {
   User,
+  Group,
   Member,
   Match,
   Prediction,
@@ -46,6 +47,7 @@ function makeConverter<T>(): FirestoreDataConverter<T> {
 }
 
 export const userConverter = makeConverter<User>()
+export const groupConverter = makeConverter<Group>()
 export const memberConverter = makeConverter<Member>()
 export const matchConverter = makeConverter<Match>()
 export const predictionConverter = makeConverter<Prediction>()
@@ -61,28 +63,51 @@ export const usersCol: CollectionReference<User> = collection(db, 'users').withC
   userConverter,
 )
 
-export const membersCol: CollectionReference<Member> = collection(db, 'members').withConverter(
-  memberConverter,
-)
-
 export const matchesCol: CollectionReference<Match> = collection(db, 'matches').withConverter(
   matchConverter,
 )
-
-export const predictionsCol: CollectionReference<Prediction> = collection(
-  db,
-  'predictions',
-).withConverter(predictionConverter)
-
-export const leaderboardCol: CollectionReference<LeaderboardEntry> = collection(
-  db,
-  'leaderboard',
-).withConverter(leaderboardConverter)
 
 export const standingsCol: CollectionReference<Standing> = collection(
   db,
   'standings',
 ).withConverter(standingConverter)
+
+/* -------------------------------------------------- groups (ticket 012) */
+// Multi-tenant: membership, predictions, and leaderboards now live UNDER a group.
+// `matches`/`standings`/`config` stay global. The owner is implicit (groups/{gid}.ownerUid);
+// member docs exist only for joiners.
+
+export const groupsCol: CollectionReference<Group> = collection(db, 'groups').withConverter(
+  groupConverter,
+)
+
+export const groupDoc = (gid: string): DocumentReference<Group> => doc(groupsCol, gid)
+
+/** `groups/{gid}/members` — joiners only (the owner is implicit via `ownerUid`). */
+export const groupMembersCol = (gid: string): CollectionReference<Member> =>
+  collection(db, 'groups', gid, 'members').withConverter(memberConverter)
+
+export const groupMemberDoc = (gid: string, uid: string): DocumentReference<Member> =>
+  doc(groupMembersCol(gid), uid)
+
+/** `groups/{gid}/predictions` — per-group predictions, keyed `{uid}_{matchId}`. */
+export const groupPredictionsCol = (gid: string): CollectionReference<Prediction> =>
+  collection(db, 'groups', gid, 'predictions').withConverter(predictionConverter)
+
+export const groupPredictionDoc = (
+  gid: string,
+  uid: string,
+  matchId: string,
+): DocumentReference<Prediction> => doc(groupPredictionsCol(gid), predictionId(uid, matchId))
+
+/** `groups/{gid}/leaderboard` — per-group aggregate (admin SDK writes only). */
+export const groupLeaderboardCol = (gid: string): CollectionReference<LeaderboardEntry> =>
+  collection(db, 'groups', gid, 'leaderboard').withConverter(leaderboardConverter)
+
+export const groupLeaderboardDoc = (
+  gid: string,
+  uid: string,
+): DocumentReference<LeaderboardEntry> => doc(groupLeaderboardCol(gid), uid)
 
 /* ----------------------------------------------------------- doc helpers */
 
@@ -91,19 +116,47 @@ export const predictionId = (uid: string, matchId: string): string => `${uid}_${
 
 export const userDoc = (uid: string): DocumentReference<User> => doc(usersCol, uid)
 
-/** `members/{uid}` — the user's own enrollment request (one per user). */
-export const memberDoc = (uid: string): DocumentReference<Member> => doc(membersCol, uid)
-
 export const matchDoc = (matchId: string): DocumentReference<Match> => doc(matchesCol, matchId)
-
-export const predictionDoc = (uid: string, matchId: string): DocumentReference<Prediction> =>
-  doc(predictionsCol, predictionId(uid, matchId))
-
-export const leaderboardDoc = (uid: string): DocumentReference<LeaderboardEntry> =>
-  doc(leaderboardCol, uid)
 
 export const standingDoc = (groupId: string): DocumentReference<Standing> =>
   doc(standingsCol, groupId)
+
+/* ------------------------------------------ DEPRECATED top-level refs (012) */
+/**
+ * @deprecated Ticket 012 moved membership, predictions, and leaderboards UNDER a group.
+ * These top-level collections are no longer written/read by the security rules and carry
+ * no data. They remain ONLY as build-time aliases so Phase B/C UI imports keep compiling
+ * until those phases repoint to the `group*` refs above. Do not use in new code:
+ *   - `membersCol` / `memberDoc`     -> `groupMembersCol(gid)` / `groupMemberDoc(gid, uid)`
+ *   - `predictionsCol` / `predictionDoc` -> `groupPredictionsCol(gid)` / `groupPredictionDoc(gid, uid, matchId)`
+ *   - `leaderboardCol` / `leaderboardDoc` -> `groupLeaderboardCol(gid)` / `groupLeaderboardDoc(gid, uid)`
+ */
+export const membersCol: CollectionReference<Member> = collection(db, 'members').withConverter(
+  memberConverter,
+)
+
+/** @deprecated see {@link groupMemberDoc}. */
+export const memberDoc = (uid: string): DocumentReference<Member> => doc(membersCol, uid)
+
+/** @deprecated see {@link groupPredictionsCol}. */
+export const predictionsCol: CollectionReference<Prediction> = collection(
+  db,
+  'predictions',
+).withConverter(predictionConverter)
+
+/** @deprecated see {@link groupPredictionDoc}. */
+export const predictionDoc = (uid: string, matchId: string): DocumentReference<Prediction> =>
+  doc(predictionsCol, predictionId(uid, matchId))
+
+/** @deprecated see {@link groupLeaderboardCol}. */
+export const leaderboardCol: CollectionReference<LeaderboardEntry> = collection(
+  db,
+  'leaderboard',
+).withConverter(leaderboardConverter)
+
+/** @deprecated see {@link groupLeaderboardDoc}. */
+export const leaderboardDoc = (uid: string): DocumentReference<LeaderboardEntry> =>
+  doc(leaderboardCol, uid)
 
 /* --------------------------------------------------------------- config */
 

@@ -19,11 +19,16 @@ vi.mock('./firebase/auth', () => ({
   signOutUser: vi.fn(),
 }))
 
-// db.ts is imported by AuthProvider; stub the doc refs so no Firestore is touched.
-// (Signed-out path never reads them, but the module must import cleanly.)
+// db.ts is imported transitively (AuthProvider + group pages); stub the refs/helpers so
+// no Firestore is touched. The signed-out path renders only LoginPage, so these are never
+// invoked — they exist so the modules import cleanly.
 vi.mock('./firebase/db', () => ({
+  db: {},
   userDoc: vi.fn(),
-  memberDoc: vi.fn(),
+  groupsCol: {},
+  groupDoc: vi.fn(),
+  groupMemberDoc: vi.fn(),
+  memberConverter: {},
 }))
 
 function renderApp() {

@@ -1,66 +1,44 @@
 /**
- * App — route guard + member shell.
+ * App — auth gate + multi-tenant routing (ticket 012).
  *
- * Auth gate (constitution: unauthenticated/non-member users see only the gate screens):
+ * Auth gate (constitution: signed-out users see only Login):
  *   - while auth is resolving → full-screen LoadingState
  *   - signed out → LoginPage (Google sign-in)
- *   - signed in but NOT a member → MembershipGate (request-to-join / pending / rejected)
- *   - signed-in member (admin or approved) → AppShell wrapping the feature routes
+ *   - signed in → the app (ANY signed-in user; there is no app-level membership gate)
  *
- * Membership (ticket 011) is `isAdmin || members/{uid}.status === 'approved'`. The
- * `/admin` route + nav item are shown only to admins; `firestore.rules` is the real
- * authority for both reads and writes.
+ * Routes:
+ *   - `/`            → MyGroups (owned + joined + pending)
+ *   - `/groups/new`  → create a group
+ *   - `/join/:gid`   → request to join a group
+ *   - `/g/:gid/{fixtures,predictions,leaderboard,standings,admin}` → group-scoped app
+ *
+ * Group routes are wrapped in `<GroupProvider>`; a non-member of that group is shown the
+ * per-group `MembershipGate`, and `/admin` is restricted to that group's admins. The
+ * `firestore.rules` remain the real authority for every read/write.
  */
 import Box from '@mui/material/Box'
-import { Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom'
-import AppShell from './components/AppShell'
-import { DEFAULT_NAV_ITEMS, ADMIN_NAV_ITEM } from './components/navItems'
+import { Routes, Route, Navigate, useParams } from 'react-router-dom'
 import { LoadingState } from './components/states'
 import { useAuth } from './auth/useAuth'
+import { GroupProvider } from './group/GroupProvider'
+import GroupApp from './group/GroupApp'
 import LoginPage from './pages/LoginPage'
-import MembershipGate from './pages/MembershipGate'
-import FixturesPage from './pages/FixturesPage'
-import PredictionsPage from './pages/PredictionsPage'
-import LeaderboardPage from './pages/LeaderboardPage'
-import StandingsPage from './pages/StandingsPage'
-import AdminPage from './pages/AdminPage'
+import MyGroupsPage from './pages/MyGroupsPage'
+import CreateGroupPage from './pages/CreateGroupPage'
+import JoinGroupPage from './pages/JoinGroupPage'
 
-/** Nav keys are the same as their route paths (without the leading slash). */
-function MemberApp({ isAdmin }: { isAdmin: boolean }) {
-  const location = useLocation()
-  const navigate = useNavigate()
-
-  // Derive the selected nav key from the current path (e.g. "/fixtures" → "fixtures").
-  const selectedKey = location.pathname.split('/')[1] || 'fixtures'
-
-  const navItems = isAdmin ? [...DEFAULT_NAV_ITEMS, ADMIN_NAV_ITEM] : DEFAULT_NAV_ITEMS
-
+/** Reads `:gid` from the route and provides the group context to the in-group app. */
+function GroupRoute() {
+  const { gid = '' } = useParams<{ gid: string }>()
   return (
-    <AppShell
-      navItems={navItems}
-      selectedKey={selectedKey}
-      onNavigate={(key) => navigate(`/${key}`)}
-    >
-      <Routes>
-        <Route path="/" element={<Navigate to="/fixtures" replace />} />
-        <Route path="/fixtures" element={<FixturesPage />} />
-        <Route path="/predictions" element={<PredictionsPage />} />
-        <Route path="/leaderboard" element={<LeaderboardPage />} />
-        <Route path="/standings" element={<StandingsPage />} />
-        {/* Admin-only: non-admins are redirected away from /admin. */}
-        <Route
-          path="/admin"
-          element={isAdmin ? <AdminPage /> : <Navigate to="/fixtures" replace />}
-        />
-        {/* Unknown paths fall back to fixtures. */}
-        <Route path="*" element={<Navigate to="/fixtures" replace />} />
-      </Routes>
-    </AppShell>
+    <GroupProvider gid={gid}>
+      <GroupApp />
+    </GroupProvider>
   )
 }
 
 function App() {
-  const { user, loading, isMember, isAdmin } = useAuth()
+  const { user, loading } = useAuth()
 
   if (loading) {
     return (
@@ -83,12 +61,16 @@ function App() {
     return <LoginPage />
   }
 
-  // Signed in but not yet a member → request-to-join / pending / rejected screens.
-  if (!isMember) {
-    return <MembershipGate />
-  }
-
-  return <MemberApp isAdmin={isAdmin} />
+  return (
+    <Routes>
+      <Route path="/" element={<MyGroupsPage />} />
+      <Route path="/groups/new" element={<CreateGroupPage />} />
+      <Route path="/join/:gid" element={<JoinGroupPage />} />
+      <Route path="/g/:gid/*" element={<GroupRoute />} />
+      {/* Unknown paths fall back to My Groups. */}
+      <Route path="*" element={<Navigate to="/" replace />} />
+    </Routes>
+  )
 }
 
 export default App

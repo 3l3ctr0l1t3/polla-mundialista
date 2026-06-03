@@ -1,0 +1,170 @@
+{
+  "count": 6,
+  "competition": { "id": 2000, "name": "FIFA World Cup", "code": "WC" },
+  "matches": [
+    {
+      "id": 500001,
+      "utcDate": "2026-06-11T19:00:00Z",
+      "status": "FINISHED",
+      "stage": "GROUP_STAGE",
+      "group": "GROUP_A",
+      "matchday": 1,
+      "lastUpdated": "2026-06-11T21:05:00Z",
+      "homeTeam": {
+        "id": 2110,
+        "name": "Mexico",
+        "shortName": "Mexico",
+        "tla": "MEX",
+        "crest": "https://crests.football-data.org/2110.png"
+      },
+      "awayTeam": {
+        "id": 2120,
+        "name": "Canada",
+        "shortName": "Canada",
+        "tla": "CAN",
+        "crest": "https://crests.football-data.org/2120.png"
+      },
+      "score": {
+        "winner": "HOME_TEAM",
+        "duration": "REGULAR",
+        "fullTime": { "home": 2, "away": 1 },
+        "halfTime": { "home": 1, "away": 0 }
+      }
+    },
+    {
+      "id": 500002,
+      "utcDate": "2026-06-11T22:00:00Z",
+      "status": "FINISHED",
+      "stage": "GROUP_STAGE",
+      "group": "GROUP_A",
+      "matchday": 1,
+      "lastUpdated": "2026-06-12T00:05:00Z",
+      "homeTeam": {
+        "id": 2130,
+        "name": "United States",
+        "shortName": "USA",
+        "tla": "USA",
+        "crest": "https://crests.football-data.org/2130.png"
+      },
+      "awayTeam": {
+        "id": 2140,
+        "name": "Wales",
+        "shortName": "Wales",
+        "tla": "WAL",
+        "crest": "https://crests.football-data.org/2140.png"
+      },
+      "score": {
+        "winner": "DRAW",
+        "duration": "REGULAR",
+        "fullTime": { "home": 1, "away": 1 },
+        "halfTime": { "home": 0, "away": 1 }
+      }
+    },
+    {
+      "id": 500003,
+      "utcDate": "2026-06-12T19:00:00Z",
+      "status": "FINISHED",
+      "stage": "GROUP_STAGE",
+      "group": "GROUP_B",
+      "matchday": 1,
+      "lastUpdated": "2026-06-12T21:05:00Z",
+      "homeTeam": {
+        "id": 2150,
+        "name": "Brazil",
+        "shortName": "Brazil",
+        "tla": "BRA",
+        "crest": "https://crests.football-data.org/2150.png"
+      },
+      "awayTeam": {
+        "id": 2160,
+        "name": "Serbia",
+        "shortName": "Serbia",
+        "tla": "SRB",
+        "crest": "https://crests.football-data.org/2160.png"
+      },
+      "score": {
+        "winner": "AWAY_TEAM",
+        "duration": "REGULAR",
+        "fullTime": { "home": 0, "away": 2 },
+        "halfTime": { "home": 0, "away": 1 }
+      }
+    },
+    {
+      "id": 500004,
+      "utcDate": "2026-06-13T19:00:00Z",
+      "status": "IN_PLAY",
+      "stage": "GROUP_STAGE",
+      "group": "GROUP_B",
+      "matchday": 1,
+      "lastUpdated": "2026-06-13T19:35:00Z",
+      "homeTeam": {
+        "id": 2170,
+        "name": "Argentina",
+        "shortName": "Argentina",
+        "tla": "ARG",
+        "crest": "https://crests.football-data.org/2170.png"
+      },
+      "awayTeam": {
+        "id": 2180,
+        "name": "Croatia",
+        "shortName": "Croatia",
+        "tla": "CRO",
+        "crest": "https://crests.football-data.org/2180.png"
+      },
+      "score": {
+        "winner": null,
+        "duration": "REGULAR",
+        "fullTime": { "home": 0, "away": 0 },
+        "halfTime": { "home": 0, "away": 0 }
+      }
+    },
+    {
+      "id": 500005,
+      "utcDate": "2026-07-04T19:00:00Z",
+      "status": "FINISHED",
+      "stage": "LAST_32",
+      "group": null,
+      "matchday": null,
+      "lastUpdated": "2026-07-04T22:30:00Z",
+      "homeTeam": {
+        "id": 2110,
+        "name": "Mexico",
+        "shortName": "Mexico",
+        "tla": "MEX",
+        "crest": "https://crests.football-data.org/2110.png"
+      },
+      "awayTeam": {
+        "id": 2150,
+        "name": "Brazil",
+        "shortName": "Brazil",
+        "tla": "BRA",
+        "crest": "https://crests.football-data.org/2150.png"
+      },
+      "score": {
+        "winner": "AWAY_TEAM",
+        "duration": "PENALTIES",
+        "fullTime": { "home": 1, "away": 1 },
+        "halfTime": { "home": 0, "away": 1 },
+        "extraTime": { "home": 0, "away": 0 },
+        "penalties": { "home": 3, "away": 4 }
+      }
+    },
+    {
+      "id": 500006,
+      "utcDate": "2026-07-09T19:00:00Z",
+      "status": "TIMED",
+      "stage": "QUARTER_FINALS",
+      "group": null,
+      "matchday": null,
+      "lastUpdated": "2026-07-05T08:00:00Z",
+      "homeTeam": { "id": null, "name": null, "shortName": null, "tla": null, "crest": null },
+      "awayTeam": { "id": null, "name": null, "shortName": null, "tla": null, "crest": null },
+      "score": {
+        "winner": null,
+        "duration": "REGULAR",
+        "fullTime": { "home": null, "away": null },
+        "halfTime": { "home": null, "away": null }
+      }
+    }
+  ]
+}

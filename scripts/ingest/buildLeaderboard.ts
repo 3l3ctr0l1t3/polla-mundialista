@@ -1,0 +1,111 @@
+// Pure leaderboard aggregation.
+//
+// Takes every GRADED prediction plus the participant profiles and produces a
+// dense-ranked array of leaderboard rows. No I/O — fully unit-testable offline.
+//
+// Tiebreakers (in order): totalPoints DESC → exactCount DESC → outcomeCount DESC
+// → displayName ASC (case-insensitive, stable). Ranking is DENSE: equal rows
+// share a rank and the next distinct row increments by one (1,1,2 — not 1,1,3).
+
+import type { ScoreBreakdown } from '../../src/shared/scoring.ts'
+
+/** Minimal slice of a prediction needed to aggregate the board. */
+export interface GradedPrediction {
+  uid: string
+  /** Total awarded points; undefined/null means not yet graded → ignored. */
+  points?: number | null
+  breakdown?: ScoreBreakdown | null
+}
+
+/** Minimal participant profile slice. */
+export interface ParticipantProfile {
+  uid: string
+  displayName: string
+  photoURL?: string | null
+}
+
+/** A computed leaderboard row (mirrors `LeaderboardEntry`, minus `updatedAt`). */
+export interface LeaderboardRow {
+  uid: string
+  displayName: string
+  photoURL: string | null
+  totalPoints: number
+  exactCount: number
+  outcomeCount: number
+  predictionsGraded: number
+  rank: number
+}
+
+function isGraded(p: GradedPrediction): boolean {
+  return typeof p.points === 'number'
+}
+
+/**
+ * Aggregate graded predictions into dense-ranked leaderboard rows.
+ *
+ * Every participant in `users` gets a row (even with zero graded predictions),
+ * so the board is complete. Predictions whose uid is not in `users` are skipped.
+ */
+export function buildLeaderboard(
+  predictions: GradedPrediction[],
+  users: ParticipantProfile[],
+): LeaderboardRow[] {
+  const byUid = new Map<string, LeaderboardRow>()
+
+  for (const u of users) {
+    byUid.set(u.uid, {
+      uid: u.uid,
+      displayName: u.displayName,
+      photoURL: u.photoURL ?? null,
+      totalPoints: 0,
+      exactCount: 0,
+      outcomeCount: 0,
+      predictionsGraded: 0,
+      rank: 0,
+    })
+  }
+
+  for (const p of predictions) {
+    if (!isGraded(p)) continue
+    const row = byUid.get(p.uid)
+    if (!row) continue // prediction for an unknown/removed user — skip.
+
+    row.totalPoints += p.points ?? 0
+    row.predictionsGraded += 1
+    if (p.breakdown) {
+      if (p.breakdown.exact > 0) row.exactCount += 1
+      else if (p.breakdown.outcome > 0) row.outcomeCount += 1
+    }
+  }
+
+  const rows = [...byUid.values()].sort(compareRows)
+
+  // Dense ranking.
+  let rank = 0
+  let prev: LeaderboardRow | undefined
+  for (const row of rows) {
+    if (!prev || !tied(prev, row)) rank += 1
+    row.rank = rank
+    prev = row
+  }
+
+  return rows
+}
+
+/** Two rows are tied iff their ranking keys (excluding name) are equal. */
+function tied(a: LeaderboardRow, b: LeaderboardRow): boolean {
+  return (
+    a.totalPoints === b.totalPoints &&
+    a.exactCount === b.exactCount &&
+    a.outcomeCount === b.outcomeCount
+  )
+}
+
+function compareRows(a: LeaderboardRow, b: LeaderboardRow): number {
+  if (b.totalPoints !== a.totalPoints) return b.totalPoints - a.totalPoints
+  if (b.exactCount !== a.exactCount) return b.exactCount - a.exactCount
+  if (b.outcomeCount !== a.outcomeCount) return b.outcomeCount - a.outcomeCount
+  return a.displayName.localeCompare(b.displayName, undefined, {
+    sensitivity: 'base',
+  })
+}

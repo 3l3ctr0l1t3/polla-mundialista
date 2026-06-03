@@ -1,0 +1,89 @@
+{
+  "standings": [
+    {
+      "type": "TOTAL",
+      "stage": "GROUP_STAGE",
+      "group": "GROUP_A",
+      "table": [
+        {
+          "position": 1,
+          "team": {
+            "id": 2110,
+            "name": "Mexico",
+            "shortName": "Mexico",
+            "tla": "MEX",
+            "crest": "https://crests.football-data.org/2110.png"
+          },
+          "playedGames": 1,
+          "won": 1,
+          "draw": 0,
+          "lost": 0,
+          "goalsFor": 2,
+          "goalsAgainst": 1,
+          "goalDifference": 1,
+          "points": 3
+        },
+        {
+          "position": 2,
+          "team": {
+            "id": 2130,
+            "name": "United States",
+            "shortName": "USA",
+            "tla": "USA",
+            "crest": "https://crests.football-data.org/2130.png"
+          },
+          "playedGames": 1,
+          "won": 0,
+          "draw": 1,
+          "lost": 0,
+          "goalsFor": 1,
+          "goalsAgainst": 1,
+          "goalDifference": 0,
+          "points": 1
+        },
+        {
+          "position": 3,
+          "team": {
+            "id": 2140,
+            "name": "Wales",
+            "shortName": "Wales",
+            "tla": "WAL",
+            "crest": "https://crests.football-data.org/2140.png"
+          },
+          "playedGames": 1,
+          "won": 0,
+          "draw": 1,
+          "lost": 0,
+          "goalsFor": 1,
+          "goalsAgainst": 1,
+          "goalDifference": 0,
+          "points": 1
+        },
+        {
+          "position": 4,
+          "team": {
+            "id": 2120,
+            "name": "Canada",
+            "shortName": "Canada",
+            "tla": "CAN",
+            "crest": "https://crests.football-data.org/2120.png"
+          },
+          "playedGames": 1,
+          "won": 0,
+          "draw": 0,
+          "lost": 1,
+          "goalsFor": 1,
+          "goalsAgainst": 2,
+          "goalDifference": -1,
+          "points": 0
+        }
+      ]
+    },
+    {
+      "type": "HOME",
+      "stage": "GROUP_STAGE",
+      "group": "GROUP_A",
+      "table": []
+    }
+  ]
+}

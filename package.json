@@ -9,6 +9,8 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:rules": "firebase emulators:exec --only firestore \"vitest run --config vitest.rules.config.ts\"",
+    "test:ingest": "vitest run --config scripts/ingest/vitest.config.ts",
+    "ingest": "tsx scripts/ingest/index.ts",
     "lint": "eslint .",
     "format": "prettier --write ."
   },

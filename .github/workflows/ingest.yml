@@ -1,0 +1,68 @@
+# Results ingestion cron (ticket 008).
+#
+# Polls football-data.org for WC 2026 results, grades predictions with the shared
+# scoring engine, rebuilds the leaderboard, and upserts standings — the ONLY
+# server-side writer. Runs on a PUBLIC repo (unlimited Actions minutes).
+#
+# REQUIRED SECRETS — set these in GitHub repo Settings → Secrets and variables →
+# Actions (NEVER commit them; the repo is public):
+#   - FOOTBALL_DATA_API_KEY   football-data.org API token (X-Auth-Token).
+#   - FIREBASE_SERVICE_ACCOUNT The Firebase service-account JSON, pasted whole.
+#   - FIREBASE_PROJECT_ID      The Firebase project id.
+#
+# The job early-exits outside 2026-06-11 .. 2026-07-19 (see scripts/ingest/index.ts),
+# so it is safe even if the cron fires before the tournament. A manual
+# workflow_dispatch can force a run/regrade via the `force` input.
+
+name: ingest
+
+on:
+  schedule:
+    # NOTE: cron is UTC. Match windows for WC 2026 (US/CA/MX kickoffs) cluster
+    # roughly 15:00–04:00 UTC. Dense polling (~every 10 min) in those windows,
+    # sparse (hourly) off-hours, to keep results fresh without wasting minutes.
+    #
+    # Dense window A: 15:00–23:59 UTC, every 10 minutes.
+    - cron: '*/10 15-23 * * *'
+    # Dense window B: 00:00–04:59 UTC, every 10 minutes.
+    - cron: '*/10 0-4 * * *'
+    # Sparse off-hours: 05:00–14:59 UTC, once per hour (top of the hour).
+    - cron: '0 5-14 * * *'
+  workflow_dispatch:
+    inputs:
+      force:
+        description: 'Run even outside the tournament window (manual regrade)'
+        type: boolean
+        default: false
+
+# Avoid overlapping runs writing concurrently.
+concurrency:
+  group: ingest
+  cancel-in-progress: false
+
+jobs:
+  ingest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run ingestion job
+        env:
+          FOOTBALL_DATA_API_KEY: ${{ secrets.FOOTBALL_DATA_API_KEY }}
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          FIREBASE_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
+          # workflow_dispatch `force` input → INGEST_FORCE=1 overrides the window guard.
+          INGEST_FORCE: ${{ github.event.inputs.force == 'true' && '1' || '0' }}
+        # Job exits non-zero on any error (see index.ts) → red run.
+        run: npm run ingest

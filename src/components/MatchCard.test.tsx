@@ -1,7 +1,14 @@
 import type { ReactNode } from 'react'
 import { render, screen } from '@testing-library/react'
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { ThemeProvider } from '@mui/material/styles'
+
+// These cards are rendered WITHOUT a `gid`, so the Predictions action/dialog is absent;
+// still, MatchCard reads server time on render, so stub it (no AuthProvider in this test).
+vi.mock('../hooks/useServerTime', () => ({
+  useServerTime: () => ({ now: () => Date.now(), offsetMs: 0, offsetKnown: true }),
+}))
+
 import { MatchCard } from './MatchCard'
 import { theme } from '../theme/theme'
 import {

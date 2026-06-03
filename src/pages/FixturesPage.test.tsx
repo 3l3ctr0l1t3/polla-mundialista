@@ -19,6 +19,22 @@ vi.mock('../hooks/useMeta', () => ({
   useMeta: () => useMetaMock(),
 }))
 
+// FixturesPage runs under a group route; stub the group context so the page can pass
+// `gid` to each MatchCard's Predictions action without a real <GroupProvider>.
+vi.mock('../group/useGroup', () => ({
+  useGroup: () => ({ gid: 'g1' }),
+}))
+
+// MatchCard's Predictions action uses server time and opens a Firestore-backed dialog;
+// stub both so this page test stays focused on the fixtures list (covered by their own
+// tests). The real MatchCard still renders teams/scores/TBD placeholders.
+vi.mock('../hooks/useServerTime', () => ({
+  useServerTime: () => ({ now: () => Date.now(), offsetMs: 0, offsetKnown: true }),
+}))
+vi.mock('../components/MatchPredictionsDialog', () => ({
+  MatchPredictionsDialog: () => null,
+}))
+
 // Imported after the mocks are registered.
 import { FixturesPage } from './FixturesPage'
 

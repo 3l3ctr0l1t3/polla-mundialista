@@ -39,6 +39,14 @@ export interface Group {
   name: string
   /** uid of the creator/owner. The owner is implicitly an approved admin (no member doc). */
   ownerUid: string
+  /**
+   * Owner display name, denormalized onto the group at creation (ticket 013). The owner
+   * has NO member doc, so the leaderboard roster reads their name from here to render them
+   * alongside member-doc joiners.
+   */
+  ownerName: string
+  /** Owner avatar URL, denormalized at creation (ticket 013); `null` if the owner has none. */
+  ownerPhotoURL: string | null
   /** Unguessable token for invite links; approval is still required. */
   inviteCode: string
   createdAt: Timestamp

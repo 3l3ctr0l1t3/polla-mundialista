@@ -19,6 +19,7 @@ import { useMatches } from '../hooks/useMatches'
 import { useMeta } from '../hooks/useMeta'
 import { groupMatchesByDay } from '../hooks/matchGrouping'
 import { MatchCard } from '../components/MatchCard'
+import { useGroup } from '../group/useGroup'
 import { LoadingState, EmptyState, ErrorState } from '../components/states'
 import type { MetaConfig } from '../shared/types'
 
@@ -52,6 +53,7 @@ function relativeFromNow(date: Date): string {
 export function FixturesPage() {
   const { matches, loading, error } = useMatches()
   const { meta } = useMeta()
+  const { gid } = useGroup()
 
   return (
     <Box>
@@ -94,7 +96,7 @@ export function FixturesPage() {
               </Typography>
               <Stack spacing={1.5}>
                 {day.matches.map((m) => (
-                  <MatchCard key={m.matchId} match={m} />
+                  <MatchCard key={m.matchId} match={m} gid={gid} />
                 ))}
               </Stack>
             </Box>

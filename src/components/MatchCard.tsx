@@ -9,21 +9,32 @@
  * Read-only: the browser never writes results (two-writers rule). All colors come
  * from the MUI theme — no hard-coded palette values.
  */
+import { useState } from 'react'
 import dayjs from 'dayjs'
 import Card from '@mui/material/Card'
 import CardContent from '@mui/material/CardContent'
+import CardActions from '@mui/material/CardActions'
 import Box from '@mui/material/Box'
 import Stack from '@mui/material/Stack'
+import Button from '@mui/material/Button'
 import Typography from '@mui/material/Typography'
 import Chip from '@mui/material/Chip'
 import Avatar from '@mui/material/Avatar'
 import SportsSoccerIcon from '@mui/icons-material/SportsSoccer'
+import GroupsIcon from '@mui/icons-material/Groups'
 import type { ChipProps } from '@mui/material/Chip'
 import type { Match, MatchStatus, Team } from '../shared/types'
 import { isTbdTeam } from '../hooks/matchGrouping'
+import { useServerTime } from '../hooks/useServerTime'
+import { MatchPredictionsDialog } from './MatchPredictionsDialog'
 
 export interface MatchCardProps {
   match: Match
+  /**
+   * When set, renders a "Predictions" action that opens the per-match reveal dialog for
+   * this group (ticket 013). Omit on pages with no group context (e.g. global fixtures).
+   */
+  gid?: string
 }
 
 const TBD_LABEL = 'TBD'
@@ -86,11 +97,15 @@ function TeamRow({ team, align }: { team: Team; align: 'start' | 'end' }) {
   )
 }
 
-export function MatchCard({ match }: MatchCardProps) {
+export function MatchCard({ match, gid }: MatchCardProps) {
   const { homeTeam, awayTeam, score, status, kickoff } = match
   const chip = statusChip(status)
   const played = score.home !== null && score.away !== null
   const kickoffLocal = dayjs(kickoff.toDate())
+  const { now } = useServerTime()
+  const [predictionsOpen, setPredictionsOpen] = useState(false)
+  // Server-corrected reveal gate; the Firestore rule is the real authority.
+  const kickedOff = now() >= kickoff.toMillis()
 
   const center = played ? (
     <Typography
@@ -134,6 +149,27 @@ export function MatchCard({ match }: MatchCardProps) {
           <TeamRow team={awayTeam} align="end" />
         </Stack>
       </CardContent>
+
+      {gid && (
+        <>
+          <CardActions sx={{ pt: 0, px: 2, pb: 1.5, justifyContent: 'flex-end' }}>
+            <Button
+              size="small"
+              startIcon={<GroupsIcon />}
+              onClick={() => setPredictionsOpen(true)}
+            >
+              Predictions
+            </Button>
+          </CardActions>
+          <MatchPredictionsDialog
+            gid={gid}
+            match={match}
+            kickedOff={kickedOff}
+            open={predictionsOpen}
+            onClose={() => setPredictionsOpen(false)}
+          />
+        </>
+      )}
     </Card>
   )
 }

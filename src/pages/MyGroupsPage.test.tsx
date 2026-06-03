@@ -23,6 +23,8 @@ const group = (groupId: string, name: string): Group => ({
   groupId,
   name,
   ownerUid: 'me',
+  ownerName: 'Me',
+  ownerPhotoURL: null,
   inviteCode: 'CODE',
   createdAt: {} as Group['createdAt'],
 })

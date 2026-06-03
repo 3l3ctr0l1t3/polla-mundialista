@@ -1,21 +1,22 @@
 /**
- * LeaderboardPage — the live ranked board (ticket 007).
+ * LeaderboardPage — the live ranked board over the FULL roster (tickets 007 + 013).
  *
- * Reads the group's public aggregate via `useGroupLeaderboard(gid)` (an `onSnapshot`
- * listener) and renders a ranked list. Rankings are computed by the ingestion job per
- * group; this page is a pure reader and updates live when new aggregates are written.
+ * Reads the group's full participant roster via `useGroupRoster(gid)` — all approved
+ * members plus the owner, each with their points (0 if not yet graded). This lists
+ * everyone who is playing the moment they're approved, independent of when ingestion
+ * last ran. Points still come solely from ingestion's `leaderboard/{uid}` aggregate
+ * (two-writers rule); this page is a pure reader and updates live.
  *
- * States: loading skeleton, error placeholder, and an empty state (the leaderboard is
- * empty until the ingestion job grades predictions and writes `leaderboard/{uid}`).
- * Raw predictions are never read here — only the aggregate, so picks stay private.
+ * States: loading skeleton, error placeholder, and an empty state (only if the group
+ * has truly no participants — which won't happen, the owner is always present). Raw
+ * predictions are never read here — only the per-member point totals.
  */
-import { useMemo } from 'react'
 import Box from '@mui/material/Box'
 import List from '@mui/material/List'
 import Paper from '@mui/material/Paper'
 import Typography from '@mui/material/Typography'
 import LeaderboardIcon from '@mui/icons-material/EmojiEvents'
-import { useGroupLeaderboard } from '../hooks/useGroupLeaderboard'
+import { useGroupRoster } from '../hooks/useGroupRoster'
 import { LeaderboardRow } from '../components/LeaderboardRow'
 import { EmptyState, ErrorState, LoadingState } from '../components/states'
 import { useAuth } from '../auth/useAuth'
@@ -23,15 +24,8 @@ import { useGroup } from '../group/useGroup'
 
 export function LeaderboardPage() {
   const { gid } = useGroup()
-  const { entries, loading, error } = useGroupLeaderboard(gid)
+  const { roster, loading, error } = useGroupRoster(gid)
   const { user } = useAuth()
-
-  // A rank is "tied" when more than one entry shares it (dense rank from ingestion).
-  const tiedRanks = useMemo(() => {
-    const counts = new Map<number, number>()
-    for (const e of entries) counts.set(e.rank, (counts.get(e.rank) ?? 0) + 1)
-    return new Set([...counts.entries()].filter(([, n]) => n > 1).map(([rank]) => rank))
-  }, [entries])
 
   return (
     <Box sx={{ maxWidth: 720, mx: 'auto' }}>
@@ -39,7 +33,7 @@ export function LeaderboardPage() {
         Leaderboard
       </Typography>
       <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-        Rankings update after each results ingestion run.
+        Everyone in the group is listed. Points update after each results ingestion run.
       </Typography>
 
       {loading ? (
@@ -49,20 +43,20 @@ export function LeaderboardPage() {
           title="Couldn’t load the leaderboard"
           description="The standings will appear once the connection recovers."
         />
-      ) : entries.length === 0 ? (
+      ) : roster.length === 0 ? (
         <EmptyState
           icon={<LeaderboardIcon fontSize="inherit" />}
-          title="No standings yet"
-          description="The board fills in once matches are played and results are graded."
+          title="No participants yet"
+          description="Approved members appear here as soon as they join."
         />
       ) : (
         <Paper variant="outlined" sx={{ borderRadius: 3, overflow: 'hidden' }}>
           <List disablePadding aria-label="Leaderboard standings">
-            {entries.map((entry) => (
+            {roster.map((entry) => (
               <LeaderboardRow
                 key={entry.uid}
                 entry={entry}
-                isTie={tiedRanks.has(entry.rank)}
+                isTie={entry.isTie}
                 isCurrentUser={user?.uid === entry.uid}
               />
             ))}

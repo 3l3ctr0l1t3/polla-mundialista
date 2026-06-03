@@ -54,6 +54,10 @@ export function CreateGroupPage() {
         groupId: gid,
         name: trimmed,
         ownerUid: user.uid,
+        // Denormalize the owner at creation: the owner has NO member doc, so the
+        // leaderboard roster reads their name/avatar from the group itself (ticket 013).
+        ownerName: user.displayName ?? user.email ?? 'Organizer',
+        ownerPhotoURL: user.photoURL ?? null,
         inviteCode: generateInviteCode(),
         createdAt: serverTimestamp() as never,
       })

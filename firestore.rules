@@ -225,8 +225,18 @@ service cloud.firestore {
       // GLOBAL matches/{matchId} doc. No points/breakdown tampering. Group members only.
 
       match /predictions/{predId} {
+        // Reveal-at-kickoff (ticket 013): a group member reads their OWN prediction
+        // anytime, or ANOTHER member's prediction only once that match has kicked off
+        // (server time >= the GLOBAL matches/{matchId}.kickoff). Pre-kickoff, others'
+        // predictions stay hidden so no one can copy. Cost: reading another member's
+        // prediction adds 1 exists()+1 get() on the global match doc (matchHasKickedOff)
+        // on top of isGroupMember(gid)'s lookups — acceptable at group scale.
         allow read: if isSignedIn()
-          && resource.data.uid == request.auth.uid;
+          && isGroupMember(gid)
+          && (
+            resource.data.uid == request.auth.uid
+            || matchHasKickedOff(resource.data.matchId)
+          );
 
         allow create: if isGroupMember(gid)
           && request.auth.uid == request.resource.data.uid
@@ -273,6 +283,14 @@ service cloud.firestore {
     function beforeKickoff(matchId) {
       return exists(/databases/$(database)/documents/matches/$(matchId))
         && request.time < matchKickoff(matchId);
+    }
+
+    // True once the referenced GLOBAL match exists and HAS kicked off (server time).
+    // Backs the reveal-at-kickoff read on group predictions (ticket 013). 1 exists()
+    // + 1 get() on the global match doc.
+    function matchHasKickedOff(matchId) {
+      return exists(/databases/$(database)/documents/matches/$(matchId))
+        && request.time >= matchKickoff(matchId);
     }
   }
 }

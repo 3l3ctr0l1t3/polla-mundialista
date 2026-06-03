@@ -14,11 +14,24 @@ import ListItem from '@mui/material/ListItem'
 import ListItemAvatar from '@mui/material/ListItemAvatar'
 import Stack from '@mui/material/Stack'
 import Typography from '@mui/material/Typography'
-import type { LeaderboardEntry } from '../shared/types'
+
+/**
+ * The minimal shape this row renders. Both the ingestion `LeaderboardEntry` and the
+ * ticket-013 `RosterEntry` (full-roster row, points default 0) satisfy it.
+ */
+export interface LeaderboardRowEntry {
+  uid: string
+  displayName: string
+  photoURL: string | null
+  totalPoints: number
+  exactCount: number
+  outcomeCount: number
+  rank: number
+}
 
 export interface LeaderboardRowProps {
-  /** The aggregate standings row for one participant. */
-  entry: LeaderboardEntry
+  /** The standings row for one participant. */
+  entry: LeaderboardRowEntry
   /** When true, this entry shares its rank with another -> shown as "T-{rank}". */
   isTie?: boolean
   /** When true, highlight this row as the signed-in user. */

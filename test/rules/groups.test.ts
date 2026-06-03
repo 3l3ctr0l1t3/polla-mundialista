@@ -40,6 +40,8 @@ function groupPayload(gid: string, ownerUid: string) {
     groupId: gid,
     name: `Pool ${gid}`,
     ownerUid,
+    ownerName: 'Owner',
+    ownerPhotoURL: null,
     inviteCode: `code-${gid}`,
     createdAt: Timestamp.now(),
   }

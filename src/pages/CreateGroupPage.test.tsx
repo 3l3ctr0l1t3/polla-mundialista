@@ -73,6 +73,8 @@ describe('CreateGroupPage', () => {
       groupId: 'GEN123',
       name: 'My Pool',
       ownerUid: 'me',
+      ownerName: 'Me',
+      ownerPhotoURL: null,
       inviteCode: 'INVITE99',
       createdAt: 'SERVER_TS',
     })

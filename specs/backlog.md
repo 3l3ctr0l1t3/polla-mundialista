@@ -16,7 +16,7 @@ Dependency order: 001 → 002 → 003 → (004, 006 parallel) → 005 → 007 �
 | 008 | Ingestion automation (cron) | 🟨 | 004, 006 | ingestion-engineer |
 | 009 | MD3 theming & polish | 🟨 | 002 | react-mui-builder |
 | 010 | Deploy & harden | 🟨 | all | acceptance-verifier |
-| 011 | Self-enrollment & admin approval | 🟦 | 002, 003 | firestore-rules-engineer + react-mui-builder |
+| 011 | Self-enrollment & admin approval | 🟨 | 002, 003 | firestore-rules-engineer + react-mui-builder |
 | 012 | Multiple groups (multi-tenant) | ⬜ parked | 011 | (design later) |
 
 ✅ = fully verified offline. 🟨 here = **code complete, all unit/rules tests green, committed** —
@@ -30,8 +30,9 @@ awaiting the runtime credentials/toggles below to be verified end-to-end and pro
 ## PENDING — your follow-ups to promote 🟨 → ✅
 1. **Enable Google sign-in** (unblocks 002, then live-verifies 004/005/007 in the browser):
    Console → Build → Authentication → Get started → **Google** → Enable (set support email).
-2. **Seed `config/allowlist`** with `{ emails: ["you@gmail.com", ...] }` (membership gate; without it
-   every signed-in user is treated as a non-member by design).
+2. **Bootstrap yourself as admin** (replaces the allowlist — ticket 011): sign in once, then in the
+   console set your `users/{uid}.isAdmin = true`. After that you're a member, you see the **/admin** page,
+   and friends just open the link → "Request to join" → you Approve them in-app. No allowlist to maintain.
 3. **football-data.org API key** + **Firebase service-account key** → enables real fixture seeding (004)
    and live ingestion (008). See `scripts/ingest/README.md`. Locally: `INGEST_FORCE=1 npm run ingest`.
 4. **Public GitHub repo + 3 Actions secrets** (`FOOTBALL_DATA_API_KEY`, `FIREBASE_SERVICE_ACCOUNT`,

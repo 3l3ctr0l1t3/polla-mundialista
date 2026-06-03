@@ -66,3 +66,5 @@ jobs:
           INGEST_FORCE: ${{ github.event.inputs.force == 'true' && '1' || '0' }}
         # Job exits non-zero on any error (see index.ts) → red run.
         run: npm run ingest
+
+# (registered via push)

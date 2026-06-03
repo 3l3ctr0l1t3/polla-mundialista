@@ -13,7 +13,7 @@ Dependency order: 001 → 002 → 003 → (004, 006 parallel) → 005 → 007 �
 | 005 | Prediction input & kickoff lock | 🟨 | 003 | react-mui-builder + firestore-rules-engineer |
 | 006 | Scoring engine | ✅ | 001 | ingestion-engineer |
 | 007 | Leaderboard | 🟨 | 003, 006 | react-mui-builder + ingestion-engineer |
-| 008 | Ingestion automation (cron) | 🟨 | 004, 006 | ingestion-engineer |
+| 008 | Ingestion automation (cron) | ✅ | 004, 006 | ingestion-engineer |
 | 009 | MD3 theming & polish | 🟨 | 002 | react-mui-builder |
 | 010 | Deploy & harden | 🟨 | all | acceptance-verifier |
 | 011 | Self-enrollment & admin approval | 🟨→012 | 002, 003 | firestore-rules-engineer + react-mui-builder |
@@ -28,7 +28,11 @@ awaiting the runtime credentials/toggles below to be verified end-to-end and pro
 ## Deployment
 - **Project:** `la-pollita-corp` (Firebase Spark) · **Live:** https://la-pollita-corp.web.app
 - **Firestore:** `(default)` in **southamerica-east1** (São Paulo); real security rules deployed (ticket 003)
-- **Quality gates green:** `npm run build`, `npm test` (app), `npm run test:rules` (35), `npm run test:ingest` (9), `npm run lint`, prettier
+- **Quality gates green:** `npm run build`, `npm test` (app), `npm run test:rules`, `npm run test:ingest`, `npm run lint`, prettier
+- **GitHub repo (public):** https://github.com/3l3ctr0l1t3/polla-mundialista — Actions secrets set
+  (`FOOTBALL_DATA_API_KEY`, `FIREBASE_SERVICE_ACCOUNT`, `FIREBASE_PROJECT_ID`); `ingest` workflow active.
+- **Seeded data:** 104 matches + 12 group standings (football-data, season 2026). Cron auto-updates
+  during the tournament (June 11–July 19); before then scheduled runs early-exit. CI run verified ✅.
 
 ## PENDING — your follow-ups to promote 🟨 → ✅
 1. **Enable Google sign-in** (unblocks 002, then live-verifies 004/005/007 in the browser):

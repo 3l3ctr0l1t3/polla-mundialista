@@ -93,6 +93,15 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    // ---- serverTime ---------------------------------------------------------
+    // Throwaway per-user doc used by useServerTime to measure the client/server
+    // clock offset (write serverTimestamp(), read it back). Owner-only; carries no
+    // sensitive data. Makes the kickoff-lock countdown immune to a wrong device clock.
+
+    match /serverTime/{uid} {
+      allow read, write: if isSignedIn() && request.auth.uid == uid;
+    }
+
     // ---- predictions --------------------------------------------------------
     // Doc id is `{uid}_{matchId}`. Owner-only. Kickoff-locked. No points/breakdown
     // tampering. Members only.

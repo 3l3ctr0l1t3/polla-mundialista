@@ -19,6 +19,8 @@ Dependency order: 001 → 002 → 003 → (004, 006 parallel) → 005 → 007 �
 
 ## Deployment
 - **Project:** `la-pollita-corp` (Firebase Spark) · **Live:** https://la-pollita-corp.web.app
+- **Firestore:** `(default)` in **southamerica-east1** (São Paulo), closed rules until ticket 003
+- **Auth:** Google provider — enable in console before ticket 002
 
 ## Milestones
 - **Early June 2026:** 001–007 verified.

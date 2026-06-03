@@ -17,7 +17,10 @@ Dependency order: 001 → 002 → 003 → (004, 006 parallel) → 005 → 007 �
 | 009 | MD3 theming & polish | 🟨 | 002 | react-mui-builder |
 | 010 | Deploy & harden | 🟨 | all | acceptance-verifier |
 | 011 | Self-enrollment & admin approval | 🟨 | 002, 003 | firestore-rules-engineer + react-mui-builder |
-| 012 | Multiple groups (multi-tenant) | ⬜ parked | 011 | (design later) |
+| 012 | Multiple groups (multi-tenant) | 🟨 | 011 | rules + react-mui + ingestion |
+
+> 012 restructures predictions/leaderboard/membership to be **per-group** (supersedes the single-pool
+> parts of 005/007/011); matches/standings/config stay global. Built in phases A–D (see 012/plan.md).
 
 ✅ = fully verified offline. 🟨 here = **code complete, all unit/rules tests green, committed** —
 awaiting the runtime credentials/toggles below to be verified end-to-end and promoted to ✅.

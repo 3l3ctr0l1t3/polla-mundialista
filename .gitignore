@@ -38,6 +38,10 @@ yarn-error.log*
 coverage/
 .nyc_output/
 
+# Design prototypes / scratch (large self-contained bundles; keep out of the public repo)
+*standalone*.html
+__tmp_*
+
 # Editor / OS
 .DS_Store
 Thumbs.db

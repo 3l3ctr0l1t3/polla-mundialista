@@ -16,6 +16,8 @@ Dependency order: 001 → 002 → 003 → (004, 006 parallel) → 005 → 007 �
 | 008 | Ingestion automation (cron) | 🟨 | 004, 006 | ingestion-engineer |
 | 009 | MD3 theming & polish | 🟨 | 002 | react-mui-builder |
 | 010 | Deploy & harden | 🟨 | all | acceptance-verifier |
+| 011 | Self-enrollment & admin approval | 🟦 | 002, 003 | firestore-rules-engineer + react-mui-builder |
+| 012 | Multiple groups (multi-tenant) | ⬜ parked | 011 | (design later) |
 
 ✅ = fully verified offline. 🟨 here = **code complete, all unit/rules tests green, committed** —
 awaiting the runtime credentials/toggles below to be verified end-to-end and promoted to ✅.

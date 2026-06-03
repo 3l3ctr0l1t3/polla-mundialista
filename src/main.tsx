@@ -12,7 +12,7 @@ if (!rootEl) throw new Error('Root element #root not found')
 
 createRoot(rootEl).render(
   <StrictMode>
-    <ThemeProvider theme={theme} defaultMode="light">
+    <ThemeProvider theme={theme} defaultMode="dark">
       <CssBaseline />
       <BrowserRouter>
         <AuthProvider>

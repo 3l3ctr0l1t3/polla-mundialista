@@ -154,7 +154,7 @@ export function AppShell({
   )
 
   return (
-    <Box sx={{ minHeight: '100dvh', bgcolor: 'background.default' }}>
+    <Box sx={{ minHeight: '100dvh' }}>
       <AppBar position="fixed">
         <Toolbar>
           <SportsSoccerIcon sx={{ mr: 1 }} aria-hidden />

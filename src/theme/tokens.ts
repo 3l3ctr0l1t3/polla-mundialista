@@ -1,132 +1,195 @@
-// Raw design tokens for the Polla Mundialista MD3 theme.
+// Raw design tokens for the Polla Mundialista theme.
 //
-// This file holds the *source* values (seed color, tonal palettes, spacing,
-// shape, typography scale). `theme.ts` assembles these into a MUI theme.
-// Components must never import hard-coded colors — they consume the MUI theme,
-// which is built from the tokens defined here.
+// This file holds the *source* values (palette, spacing, shape, typography
+// scale, gradients). `theme.ts` assembles these into a MUI theme. Components
+// must never import hard-coded colors — they consume the MUI theme, which is
+// built from the tokens defined here (constitution: theme specifics isolated
+// in `src/theme/`).
 //
-// NOTE: This is a sensible *default* MD3 palette generated from a
-// World-Cup-ish seed. A custom brand design may replace these values later
-// without touching component code.
+// DESIGN: "La Pollita" — a dark, neon sports aesthetic extracted from the
+// user's prototype. Dark is the default/product look. Electric blue primary,
+// with pink / mint / gold accents on a near-black radial backdrop.
 
-/** The MD3 seed color the rest of the palette is derived from (a football-pitch green). */
-export const SEED = '#2e7d32'
+/** Brand accent — the electric blue everything keys off of. */
+export const SEED = '#36b8ff'
+
+/** Core brand / accent colors (the neon sports palette). */
+export const brand = {
+  /** Electric blue — primary / info. */
+  blue: '#36b8ff',
+  /** Hot pink — error / "live". */
+  pink: '#ff4d6d',
+  /** Mint green — success / positive. */
+  mint: '#46f5a0',
+  /** Gold — warning / highlight. */
+  gold: '#ffd24d',
+} as const
 
 /**
- * Tonal palettes (a subset of the MD3 tonal range) derived from the seed and
- * its harmonized accents. Values are hand-tuned approximations of the MD3
- * Material Color Utilities output for the seed above — enough tones to drive a
- * light + dark scheme without pulling in an extra dependency.
+ * Dark scheme ramp. The product is dark-first: a near-black background with
+ * slightly lighter elevated surfaces, off-white text, and faint neon-tinted
+ * dividers. Tones for the accents are tuned to stay readable (WCAG AA) on the
+ * dark surfaces.
  */
-export const tones = {
+export const dark = {
   primary: {
-    main: '#2e7d32',
-    light: '#60ad5e',
-    dark: '#005005',
-    container: '#a5d6a7',
-    onContainer: '#002106',
+    main: '#36b8ff',
+    light: '#74cdff',
+    dark: '#0a90df',
+    contrastText: '#04121c',
+  },
+  secondary: {
+    // Hot pink accent.
+    main: '#ff4d6d',
+    light: '#ff8097',
+    dark: '#c81e44',
+    contrastText: '#1a0207',
+  },
+  success: {
+    main: '#46f5a0',
+    light: '#7ff8bf',
+    dark: '#10b86a',
+    contrastText: '#04140c',
+  },
+  warning: {
+    main: '#ffd24d',
+    light: '#ffe08a',
+    dark: '#d3a300',
+    contrastText: '#1a1400',
+  },
+  error: {
+    main: '#ff4d6d',
+    light: '#ff8097',
+    dark: '#c81e44',
+    contrastText: '#1a0207',
+  },
+  info: {
+    main: '#36b8ff',
+    light: '#74cdff',
+    dark: '#0a90df',
+    contrastText: '#04121c',
+  },
+  background: {
+    /** Near-black page backdrop (the radial gradient sits on top via CssBaseline). */
+    default: '#07090a',
+    /** Elevated surface (cards, app bar, sheets). */
+    paper: '#0e1416',
+  },
+  /** A slightly lighter elevated surface for nested panels. */
+  surfaceVariant: '#141a1d',
+  text: {
+    primary: '#e8efea',
+    // Muted desaturated off-white (~54% of primary) — meets AA on dark surfaces.
+    secondary: '#9aa6a1',
+    disabled: '#5d6663',
+  },
+  /** Faint neon-tinted hairline divider. */
+  divider: 'rgba(232, 239, 234, 0.12)',
+} as const
+
+/**
+ * Light scheme. Kept as a sensible companion so MUI can offer both schemes,
+ * but the dark scheme above is the real product look.
+ */
+export const light = {
+  primary: {
+    main: '#0a7fc2',
+    light: '#36b8ff',
+    dark: '#005c92',
     contrastText: '#ffffff',
   },
   secondary: {
-    // A warm "match-day" amber.
-    main: '#b26a00',
-    light: '#e89a3c',
-    dark: '#7c4700',
-    container: '#ffddb3',
-    onContainer: '#2a1700',
+    main: '#d11d44',
+    light: '#ff4d6d',
+    dark: '#9c0029',
     contrastText: '#ffffff',
   },
-  tertiary: {
-    // A cool sky accent for highlights / charts.
-    main: '#00658f',
-    light: '#4a90b8',
-    dark: '#004c6d',
-    container: '#c5e7ff',
-    onContainer: '#001e2e',
+  success: {
+    main: '#0f9d58',
+    light: '#46f5a0',
+    dark: '#006b3c',
+    contrastText: '#ffffff',
+  },
+  warning: {
+    main: '#b07c00',
+    light: '#ffd24d',
+    dark: '#7a5400',
     contrastText: '#ffffff',
   },
   error: {
-    main: '#ba1a1a',
-    light: '#de3730',
-    dark: '#93000a',
-    container: '#ffdad6',
-    onContainer: '#410002',
+    main: '#d11d44',
+    light: '#ff4d6d',
+    dark: '#9c0029',
     contrastText: '#ffffff',
   },
-  neutral: {
-    // Surface / background ramp.
-    light: {
-      background: '#fbfdf8',
-      surface: '#fbfdf8',
-      surfaceVariant: '#dee5d8',
-      onSurface: '#191c19',
-      onSurfaceVariant: '#424940',
-      outline: '#72796f',
-      outlineVariant: '#c1c9bd',
-    },
-    dark: {
-      background: '#191c19',
-      surface: '#191c19',
-      surfaceVariant: '#424940',
-      onSurface: '#e1e3dd',
-      onSurfaceVariant: '#c1c9bd',
-      outline: '#8c9388',
-      outlineVariant: '#424940',
-    },
+  info: {
+    main: '#0a7fc2',
+    light: '#36b8ff',
+    dark: '#005c92',
+    contrastText: '#ffffff',
   },
+  background: {
+    default: '#f4f7f6',
+    paper: '#ffffff',
+  },
+  surfaceVariant: '#eaf0ee',
+  text: {
+    primary: '#0e1416',
+    secondary: '#4a5550',
+    disabled: '#8a938f',
+  },
+  divider: 'rgba(14, 20, 22, 0.12)',
 } as const
 
-/** Dark-scheme tonal overrides for the accent palettes (lighter tones read better on dark surfaces). */
-export const darkTones = {
-  primary: {
-    main: '#8bd989',
-    light: '#a5d6a7',
-    dark: '#005005',
-    container: '#005005',
-    onContainer: '#a5d6a7',
-    contrastText: '#003910',
-  },
-  secondary: {
-    main: '#ffb95c',
-    light: '#ffddb3',
-    dark: '#5e3600',
-    container: '#7c4700',
-    onContainer: '#ffddb3',
-    contrastText: '#462a00',
-  },
-  tertiary: {
-    main: '#85cfff',
-    light: '#c5e7ff',
-    dark: '#004c6d',
-    container: '#004c6d',
-    onContainer: '#c5e7ff',
-    contrastText: '#003351',
-  },
-  error: {
-    main: '#ffb4ab',
-    light: '#ffdad6',
-    dark: '#690005',
-    container: '#93000a',
-    onContainer: '#ffdad6',
-    contrastText: '#690005',
-  },
+/**
+ * The signature dark backdrop — a subtle top radial gradient. Applied globally
+ * via `CssBaseline` so every screen sits on the dark backdrop.
+ */
+export const backdrop = {
+  dark: 'radial-gradient(120% 80% at 50% 0%, #0d1314 0%, #080a0b 58%, #050606 100%)',
+  light: '#f4f7f6',
 } as const
 
-/** MD3 uses a 4px base grid; MUI's spacing(1) === 8px, so we keep MUI's default 8 but document intent. */
+/** Soft neon glow used on primary/active elements (a colored box-shadow). */
+export const glow = {
+  primary: '0 0 0 1px rgba(54, 184, 255, 0.32), 0 6px 20px -6px rgba(54, 184, 255, 0.45)',
+} as const
+
+/** Spacing base. MUI's spacing(1) === 8px; documented for intent. */
 export const SPACING_UNIT = 8
 
-/** MD3-ish corner radii. MUI `shape.borderRadius` drives most components. */
+/** Corner radii — moderate, sporty. MUI `shape.borderRadius` drives most components. */
 export const shape = {
-  borderRadius: 12,
+  borderRadius: 10,
 } as const
 
-/** Type scale — kept close to MD3 roles, expressed in MUI variant terms. */
+/** Font stacks. Barlow for body/UI, Barlow Condensed for headings/display. */
+export const fonts = {
+  body: ['Barlow', 'system-ui', 'Segoe UI', 'Helvetica', 'Arial', 'sans-serif'].join(','),
+  display: ['Barlow Condensed', 'Barlow', 'system-ui', 'Helvetica', 'Arial', 'sans-serif'].join(
+    ',',
+  ),
+} as const
+
+/**
+ * Type scale. Headings/display use the condensed face with tighter line-height
+ * and a hint of letter-spacing for the sporty look; body/UI uses Barlow.
+ */
 export const typography = {
-  fontFamily: ['Roboto', 'system-ui', 'Avenir', 'Helvetica', 'Arial', 'sans-serif'].join(','),
-  h4: { fontWeight: 600 },
+  fontFamily: fonts.body,
+  h1: { fontFamily: fonts.display, fontWeight: 800, lineHeight: 1.04, letterSpacing: '0.01em' },
+  h2: { fontFamily: fonts.display, fontWeight: 700, lineHeight: 1.08, letterSpacing: '0.01em' },
+  h3: { fontFamily: fonts.display, fontWeight: 700, lineHeight: 1.1 },
+  h4: { fontFamily: fonts.display, fontWeight: 700, lineHeight: 1.12 },
   h5: { fontWeight: 600 },
   h6: { fontWeight: 600 },
-  button: { textTransform: 'none' as const, fontWeight: 600 },
+  overline: {
+    fontFamily: fonts.display,
+    fontWeight: 600,
+    letterSpacing: '0.14em',
+    textTransform: 'uppercase' as const,
+  },
+  button: { textTransform: 'none' as const, fontWeight: 600, letterSpacing: '0.01em' },
 } as const
 
 /** Layout constants shared across the shell. */

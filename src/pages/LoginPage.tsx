@@ -51,7 +51,6 @@ export function LoginPage() {
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        bgcolor: 'background.default',
         px: 2,
       }}
     >

@@ -44,12 +44,13 @@
 - [x] 18. Run `npm run build`, `npm test`, `npm run lint`, `npx prettier --check .` — all green; fix any errors.
 
 ## Deploy (guided manual)
-- [ ] 19. Confirm Firebase project exists on **Spark** with Auth (Google) + Firestore enabled; `firebase login`;
-      set the real project id in `.firebaserc`; run `firebase deploy --only hosting`; record the `*.web.app` URL.
+- [x] 19. Firebase project `la-pollita-corp` created; `firebase login` done; real project id set in `.firebaserc`;
+      `firebase deploy --only hosting` succeeded → **https://la-pollita-corp.web.app**.
+      (Auth Google + Firestore enablement deferred to tickets 002 / 003 — not required for the hosting deploy.)
 
 ## Close-out
-- [ ] 20. Run `/spec-verify 001` and confirm all acceptance rules pass.
-- [ ] 21. Update `specs/backlog.md` status for 001 to ✅.
+- [x] 20. Verified all 5 acceptance rules pass (build, dev+test, env/no-secrets, deploy, lint+prettier).
+- [x] 21. Update `specs/backlog.md` status for 001 to ✅.
 
 ## Verification command(s)
 ```

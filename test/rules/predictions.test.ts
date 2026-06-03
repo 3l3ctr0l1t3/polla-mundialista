@@ -45,7 +45,8 @@ afterAll(async () => {
 
 beforeEach(async () => {
   await env.clearFirestore()
-  // Seed matches + allowlist with rules disabled (simulates admin SDK / ingestion).
+  // Seed matches + an approved members/{uid} doc with rules disabled
+  // (simulates admin SDK / ingestion + a prior admin approval).
   await env.withSecurityRulesDisabled(async (ctx) => {
     const adb = ctx.firestore()
     await setDoc(doc(adb, 'matches', MATCH_ID), {
@@ -58,8 +59,27 @@ beforeEach(async () => {
       kickoff: Timestamp.fromDate(PAST_KICKOFF),
       status: 'TIMED',
     })
-    await setDoc(doc(adb, 'config', 'allowlist'), {
-      emails: [MEMBER_EMAIL],
+    // Membership is now the members/{uid} model (ticket 011), not config/allowlist.
+    // UID is an approved member; OTHER_UID is approved too (used by ownership tests).
+    await setDoc(doc(adb, 'members', UID), {
+      uid: UID,
+      displayName: 'Alice',
+      email: MEMBER_EMAIL,
+      photoURL: null,
+      status: 'approved',
+      requestedAt: Timestamp.now(),
+      decidedAt: Timestamp.now(),
+      decidedBy: 'admin-uid',
+    })
+    await setDoc(doc(adb, 'members', OTHER_UID), {
+      uid: OTHER_UID,
+      displayName: 'Bob',
+      email: MEMBER_EMAIL,
+      photoURL: null,
+      status: 'approved',
+      requestedAt: Timestamp.now(),
+      decidedAt: Timestamp.now(),
+      decidedBy: 'admin-uid',
     })
   })
 })
@@ -151,14 +171,55 @@ describe('predictions — ownership', () => {
   })
 })
 
-describe('predictions — membership (allowlist)', () => {
-  it('rejects a non-member, even before kickoff', async () => {
+describe('predictions — membership (members model)', () => {
+  it('rejects a non-member (no members/{uid} doc), even before kickoff', async () => {
     const db = authedAs(env, 'user-outsider', OUTSIDER_EMAIL)
     await assertFails(
       setDoc(
         doc(db, 'predictions', predId('user-outsider', MATCH_ID)),
         validPred('user-outsider', MATCH_ID),
       ),
+    )
+  })
+
+  it('rejects a pending (not yet approved) member', async () => {
+    const PENDING_UID = 'user-pending'
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), 'members', PENDING_UID), {
+        uid: PENDING_UID,
+        displayName: 'Pat',
+        email: OUTSIDER_EMAIL,
+        photoURL: null,
+        status: 'pending',
+        requestedAt: Timestamp.now(),
+        decidedAt: null,
+        decidedBy: null,
+      })
+    })
+    const db = authedAs(env, PENDING_UID, OUTSIDER_EMAIL)
+    await assertFails(
+      setDoc(
+        doc(db, 'predictions', predId(PENDING_UID, MATCH_ID)),
+        validPred(PENDING_UID, MATCH_ID),
+      ),
+    )
+  })
+
+  it('allows an admin (non-approved member) to write a prediction', async () => {
+    const ADMIN_UID = 'user-admin'
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), 'users', ADMIN_UID), {
+        uid: ADMIN_UID,
+        displayName: 'Admin',
+        email: MEMBER_EMAIL,
+        photoURL: null,
+        isAdmin: true,
+        createdAt: Timestamp.now(),
+      })
+    })
+    const db = authedAs(env, ADMIN_UID, MEMBER_EMAIL)
+    await assertSucceeds(
+      setDoc(doc(db, 'predictions', predId(ADMIN_UID, MATCH_ID)), validPred(ADMIN_UID, MATCH_ID)),
     )
   })
 

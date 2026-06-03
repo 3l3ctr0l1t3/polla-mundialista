@@ -23,7 +23,7 @@ vi.mock('./firebase/auth', () => ({
 // (Signed-out path never reads them, but the module must import cleanly.)
 vi.mock('./firebase/db', () => ({
   userDoc: vi.fn(),
-  allowlistConfigDoc: vi.fn(),
+  memberDoc: vi.fn(),
 }))
 
 function renderApp() {

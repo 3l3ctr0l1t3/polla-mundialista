@@ -11,10 +11,18 @@ rules_version = '2';
 //   prediction create/update is allowed only while `request.time < match.kickoff`,
 //   using SERVER time. The client clock is never trusted.
 //
+// MEMBERSHIP MODEL (ticket 011):
+//   membership is the `members/{uid}` request->approve model, NOT the old
+//   `config/allowlist`. A user creates their own `members/{uid}` with status
+//   'pending'; only an admin may change status. `config/allowlist` is DEPRECATED
+//   and no longer consulted by these rules (it remains readable for legacy reads).
+//
 // COST NOTE: each prediction create/update performs ONE get() on the target match doc
-//   (the kickoff lock) and prediction writes also get() config/allowlist (membership).
-//   That is up to two extra reads per prediction write — acceptable at this scale
-//   (a few dozen participants x 104 matches). Reads of public collections add no get()s.
+//   (the kickoff lock) plus membership get()s: isAdmin() does one get() on users/{uid},
+//   and (only if not admin) isApprovedMember() does one get() on members/{uid}. So a
+//   prediction write does ~2-3 extra reads. members/{uid} admin writes additionally
+//   get() users/{uid} via isAdmin(). Acceptable at this scale (a few dozen participants
+//   x 104 matches). Reads of public collections add no get()s.
 service cloud.firestore {
   match /databases/{database}/documents {
 
@@ -24,13 +32,24 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    // Allowlist membership: the signed-in email must be listed in config/allowlist.emails.
-    // Applied to prediction writes so only invited participants can play.
-    function isMember() {
+    // True if the signed-in user's users/{uid} doc has isAdmin == true. One get().
+    function isAdmin() {
       return isSignedIn()
-        && request.auth.token.email != null
-        && request.auth.token.email
-             in get(/databases/$(database)/documents/config/allowlist).data.emails;
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
+    }
+
+    // True if the signed-in user has an approved members/{uid} request. One get().
+    function isApprovedMember() {
+      return isSignedIn()
+        && exists(/databases/$(database)/documents/members/$(request.auth.uid))
+        && get(/databases/$(database)/documents/members/$(request.auth.uid)).data.status == 'approved';
+    }
+
+    // Membership gate for predictions (ticket 011): an admin, or an approved member.
+    // Replaces the deprecated config/allowlist lookup. Admins are always members.
+    function isMember() {
+      return isAdmin() || isApprovedMember();
     }
 
     function matchKickoff(matchId) {
@@ -91,6 +110,58 @@ service cloud.firestore {
         );
 
       allow delete: if false;
+    }
+
+    // ---- members ------------------------------------------------------------
+    // Self-enrollment + admin approval (ticket 011). Doc id is the user's uid.
+    //   - create: a signed-in user requests to join their OWN doc as 'pending';
+    //     they may NOT set decidedBy/decidedAt and may NOT self-approve.
+    //   - update: the owner may ONLY re-request after a rejection (rejected ->
+    //     pending, no decided* fields); an admin may set any status and stamps
+    //     decidedBy == their uid + decidedAt. A non-admin can never reach 'approved'.
+    //   - read: owner or admin.
+    //   - delete: admin only.
+
+    function memberDecidedFieldsAbsentOrNull() {
+      return (
+        !('decidedBy' in request.resource.data.keys())
+        || request.resource.data.decidedBy == null
+      ) && (
+        !('decidedAt' in request.resource.data.keys())
+        || request.resource.data.decidedAt == null
+      );
+    }
+
+    match /members/{uid} {
+      allow read: if isSignedIn()
+        && (request.auth.uid == uid || isAdmin());
+
+      // Self-request to join: own doc, uid matches, starts pending, no decision stamped.
+      allow create: if isSignedIn()
+        && request.auth.uid == uid
+        && request.resource.data.uid == uid
+        && request.resource.data.status == 'pending'
+        && memberDecidedFieldsAbsentOrNull();
+
+      allow update: if isSignedIn() && (
+        // (a) owner re-requesting after a rejection: rejected -> pending only.
+        (
+          request.auth.uid == uid
+          && resource.data.status == 'rejected'
+          && request.resource.data.status == 'pending'
+          && request.resource.data.uid == uid
+          && memberDecidedFieldsAbsentOrNull()
+        )
+        // (b) an admin deciding: any status, stamping themselves as the decider.
+        || (
+          isAdmin()
+          && request.resource.data.uid == resource.data.uid
+          && request.resource.data.decidedBy == request.auth.uid
+          && request.resource.data.decidedAt != null
+        )
+      );
+
+      allow delete: if isAdmin();
     }
 
     // ---- serverTime ---------------------------------------------------------

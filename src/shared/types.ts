@@ -24,6 +24,35 @@ export interface User {
   createdAt: Timestamp
 }
 
+/* -------------------------------------------------------------- members */
+
+/** A membership request's lifecycle state. */
+export type MemberStatus = 'pending' | 'approved' | 'rejected'
+
+/**
+ * `members/{uid}` — a self-enrollment request (ticket 011).
+ *
+ * A signed-in user creates their own doc with `status: 'pending'`; an admin
+ * approves/rejects it by setting `status` + `decidedBy`/`decidedAt`. Membership
+ * for predictions is `isAdmin || members/{uid}.status === 'approved'`. This
+ * replaces the deprecated `config/allowlist`.
+ *
+ * `decidedAt`/`decidedBy` are null while pending and may be set ONLY by an admin
+ * (enforced in `firestore.rules`). A user may never self-approve.
+ */
+export interface Member {
+  uid: string
+  displayName: string
+  email: string
+  photoURL: string | null
+  status: MemberStatus
+  requestedAt: Timestamp
+  /** When an admin decided (approved/rejected); null while pending. */
+  decidedAt: Timestamp | null
+  /** uid of the admin who decided; null while pending. */
+  decidedBy: string | null
+}
+
 /* ---------------------------------------------------------------- matches */
 
 /** football-data.org match lifecycle states we care about. */
@@ -158,7 +187,13 @@ export interface Standing {
 /** `config/scoring` — the scoring weights/policy. Shape owned by ticket 006. */
 export type ScoringConfigDoc = ScoringConfig
 
-/** `config/allowlist` — emails permitted to join the pool. */
+/**
+ * `config/allowlist` — emails permitted to join the pool.
+ *
+ * @deprecated Superseded by the `members/{uid}` request→approve model (ticket 011).
+ * No longer consulted by `firestore.rules` or the app; retained only for historical
+ * reads. Safe to delete once no client references it.
+ */
 export interface AllowlistConfig {
   emails: string[]
 }

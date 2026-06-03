@@ -21,6 +21,7 @@ import {
 import { app } from './config'
 import type {
   User,
+  Member,
   Match,
   Prediction,
   LeaderboardEntry,
@@ -45,6 +46,7 @@ function makeConverter<T>(): FirestoreDataConverter<T> {
 }
 
 export const userConverter = makeConverter<User>()
+export const memberConverter = makeConverter<Member>()
 export const matchConverter = makeConverter<Match>()
 export const predictionConverter = makeConverter<Prediction>()
 export const leaderboardConverter = makeConverter<LeaderboardEntry>()
@@ -57,6 +59,10 @@ export const metaConfigConverter = makeConverter<MetaConfig>()
 
 export const usersCol: CollectionReference<User> = collection(db, 'users').withConverter(
   userConverter,
+)
+
+export const membersCol: CollectionReference<Member> = collection(db, 'members').withConverter(
+  memberConverter,
 )
 
 export const matchesCol: CollectionReference<Match> = collection(db, 'matches').withConverter(
@@ -84,6 +90,9 @@ export const standingsCol: CollectionReference<Standing> = collection(
 export const predictionId = (uid: string, matchId: string): string => `${uid}_${matchId}`
 
 export const userDoc = (uid: string): DocumentReference<User> => doc(usersCol, uid)
+
+/** `members/{uid}` — the user's own enrollment request (one per user). */
+export const memberDoc = (uid: string): DocumentReference<Member> => doc(membersCol, uid)
 
 export const matchDoc = (matchId: string): DocumentReference<Match> => doc(matchesCol, matchId)
 

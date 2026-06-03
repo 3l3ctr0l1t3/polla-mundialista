@@ -1,10 +1,9 @@
 /**
- * LoginPage — the only page reachable while signed out OR signed in but not a member.
+ * LoginPage — the only page reachable while signed OUT.
  *
- * Two states:
- *   - Signed out: a Google sign-in button.
- *   - Signed in but NOT on the allowlist: an "ask the organizer to add you" message
- *     plus a sign-out action.
+ * Renders a Google sign-in button. Once signed in, AuthProvider takes over and App
+ * routes to either the membership gate (non-members) or the app shell (members) — so
+ * LoginPage no longer handles the "not a member" case (see `MembershipGate`).
  *
  * PENDING RUNTIME STEP: sign-in only succeeds once the Google provider is enabled in
  * the Firebase console (`la-pollita-corp`). A provider-disabled error surfaces in the
@@ -21,26 +20,18 @@ import Snackbar from '@mui/material/Snackbar'
 import Alert from '@mui/material/Alert'
 import GoogleIcon from '@mui/icons-material/Google'
 import SportsSoccerIcon from '@mui/icons-material/SportsSoccer'
-import LockPersonIcon from '@mui/icons-material/LockPerson'
-import { signInWithGoogle, signOutUser } from '../firebase/auth'
-import { useAuth } from '../auth/useAuth'
+import { signInWithGoogle } from '../firebase/auth'
 
 export function LoginPage() {
-  const { user } = useAuth()
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
-
-  // A user object here means signed in but not a member (the route guard only renders
-  // LoginPage for members-failing cases).
-  const isNonMember = user !== null
 
   const handleSignIn = async () => {
     setBusy(true)
     setError(null)
     try {
       await signInWithGoogle()
-      // On success AuthProvider takes over; App swaps to the member shell or the
-      // not-a-member state below.
+      // On success AuthProvider takes over; App swaps to the membership gate or shell.
     } catch (err) {
       const code = (err as { code?: string }).code
       setError(
@@ -48,17 +39,6 @@ export function LoginPage() {
           ? 'Sign-in was cancelled.'
           : 'Could not sign in. Please try again.',
       )
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  const handleSignOut = async () => {
-    setBusy(true)
-    try {
-      await signOutUser()
-    } catch {
-      setError('Could not sign out. Please try again.')
     } finally {
       setBusy(false)
     }
@@ -78,19 +58,8 @@ export function LoginPage() {
       <Card elevation={3} sx={{ width: '100%', maxWidth: 420, borderRadius: 4 }}>
         <CardContent sx={{ p: 4 }}>
           <Stack spacing={3} sx={{ alignItems: 'center', textAlign: 'center' }}>
-            <Box
-              aria-hidden
-              sx={{
-                display: 'flex',
-                color: isNonMember ? 'warning.main' : 'primary.main',
-                fontSize: 56,
-              }}
-            >
-              {isNonMember ? (
-                <LockPersonIcon fontSize="inherit" />
-              ) : (
-                <SportsSoccerIcon fontSize="inherit" />
-              )}
+            <Box aria-hidden sx={{ display: 'flex', color: 'primary.main', fontSize: 56 }}>
+              <SportsSoccerIcon fontSize="inherit" />
             </Box>
 
             <Stack spacing={1}>
@@ -98,45 +67,22 @@ export function LoginPage() {
                 Polla Mundialista
               </Typography>
               <Typography variant="body2" color="text.secondary">
-                {isNonMember
-                  ? 'FIFA World Cup 2026 prediction pool'
-                  : 'Sign in to make your predictions and climb the leaderboard.'}
+                Sign in to make your predictions and climb the leaderboard.
               </Typography>
             </Stack>
 
-            {isNonMember ? (
-              <Stack spacing={2} sx={{ width: '100%' }}>
-                <Typography variant="body1" color="text.primary">
-                  You&apos;re signed in as <strong>{user?.email}</strong>, but this account
-                  isn&apos;t on the pool&apos;s guest list yet.
-                </Typography>
-                <Typography variant="body2" color="text.secondary">
-                  Ask the organizer to add your email, then sign in again.
-                </Typography>
-                <Button
-                  variant="outlined"
-                  color="primary"
-                  onClick={handleSignOut}
-                  disabled={busy}
-                  fullWidth
-                >
-                  Sign out
-                </Button>
-              </Stack>
-            ) : (
-              <Button
-                variant="contained"
-                color="primary"
-                size="large"
-                startIcon={<GoogleIcon />}
-                onClick={handleSignIn}
-                disabled={busy}
-                fullWidth
-                sx={{ borderRadius: 8, py: 1.25 }}
-              >
-                Sign in with Google
-              </Button>
-            )}
+            <Button
+              variant="contained"
+              color="primary"
+              size="large"
+              startIcon={<GoogleIcon />}
+              onClick={handleSignIn}
+              disabled={busy}
+              fullWidth
+              sx={{ borderRadius: 8, py: 1.25 }}
+            >
+              Sign in with Google
+            </Button>
           </Stack>
         </CardContent>
       </Card>

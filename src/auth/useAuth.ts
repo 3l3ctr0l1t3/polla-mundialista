@@ -3,7 +3,7 @@ import { AuthContext, type AuthContextValue } from './authContext'
 
 /**
  * Access the auth context. Must be called inside an `<AuthProvider>` subtree.
- * Returns `{ user, loading, isMember }`.
+ * Returns `{ user, loading, isMember, isAdmin, memberStatus }`.
  */
 export function useAuth(): AuthContextValue {
   const ctx = useContext(AuthContext)

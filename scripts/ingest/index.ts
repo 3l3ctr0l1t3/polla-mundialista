@@ -219,38 +219,80 @@ async function rebuildGroupLeaderboard(
   return rows.length
 }
 
-/** Upsert group standings (TOTAL tables) into standings/{group}. */
+/**
+ * Upsert group standings into standings/{group}.
+ *
+ * football-data returns WC standings as a SINGLE flat TOTAL table (group: null,
+ * all 48 teams) rather than 12 per-group tables. We bucket that flat table into
+ * groups using a team→group map derived from the group-stage matches, re-ranking
+ * positions within each group. If football-data ever sends real per-group TOTAL
+ * tables (group: 'GROUP_A'), we use those directly.
+ */
 async function upsertStandings(
   db: FirebaseFirestore.Firestore,
   standings: FdStandingsResponse,
+  matches: MatchDoc[],
 ): Promise<number> {
   const updatedAt = Timestamp.now()
-  const tables = (standings.standings ?? []).filter((t) => t.type === 'TOTAL' && t.group)
 
-  await commitInBatches(db, tables, (batch, t) => {
-    const groupId = /^GROUP_([A-L])$/.exec(t.group ?? '')?.[1]
-    if (!groupId) return
-    const table = t.table.map((r) => ({
-      position: r.position,
-      team: {
-        id: r.team.id ?? -1,
-        name: r.team.name ?? 'TBD',
-        shortName: r.team.shortName ?? r.team.name ?? 'TBD',
-        tla: r.team.tla ?? 'TBD',
-        crest: r.team.crest ?? '',
-      },
-      playedGames: r.playedGames,
-      won: r.won,
-      draw: r.draw,
-      lost: r.lost,
-      goalsFor: r.goalsFor,
-      goalsAgainst: r.goalsAgainst,
-      goalDifference: r.goalDifference,
-      points: r.points,
-    }))
+  type StRow = ReturnType<typeof mapRow>
+  const mapRow = (r: FdStandingsResponse['standings'][number]['table'][number]) => ({
+    position: r.position,
+    team: {
+      id: r.team.id ?? -1,
+      name: r.team.name ?? 'TBD',
+      shortName: r.team.shortName ?? r.team.name ?? 'TBD',
+      tla: r.team.tla ?? 'TBD',
+      crest: r.team.crest ?? '',
+    },
+    playedGames: r.playedGames,
+    won: r.won,
+    draw: r.draw,
+    lost: r.lost,
+    goalsFor: r.goalsFor,
+    goalsAgainst: r.goalsAgainst,
+    goalDifference: r.goalDifference,
+    points: r.points,
+  })
+
+  // team id -> group letter (A-L), from group-stage matches.
+  const teamGroup = new Map<number, string>()
+  for (const m of matches) {
+    if (m.group && /^[A-L]$/.test(m.group)) {
+      if (m.homeTeam?.id != null) teamGroup.set(m.homeTeam.id, m.group)
+      if (m.awayTeam?.id != null) teamGroup.set(m.awayTeam.id, m.group)
+    }
+  }
+
+  const all = standings.standings ?? []
+  const perGroup: Record<string, StRow[]> = {}
+
+  const groupedTables = all.filter((t) => t.type === 'TOTAL' && t.group)
+  if (groupedTables.length) {
+    for (const t of groupedTables) {
+      const g = /^GROUP_([A-L])$/.exec(t.group ?? '')?.[1]
+      if (g) perGroup[g] = t.table.map(mapRow)
+    }
+  } else {
+    // Bucket the flat TOTAL table by each team's group.
+    const flat = all.find((t) => t.type === 'TOTAL')
+    for (const r of flat?.table ?? []) {
+      const g = teamGroup.get(r.team.id ?? -1)
+      if (!g) continue
+      ;(perGroup[g] ??= []).push(mapRow(r))
+    }
+    // Re-number positions 1..N within each group (preserve global order).
+    for (const g of Object.keys(perGroup)) {
+      perGroup[g].sort((a, b) => a.position - b.position)
+      perGroup[g].forEach((r, i) => (r.position = i + 1))
+    }
+  }
+
+  const entries = Object.entries(perGroup)
+  await commitInBatches(db, entries, (batch, [groupId, table]) => {
     batch.set(db.doc(`standings/${groupId}`), { groupId, table, updatedAt }, { merge: false })
   })
-  return tables.length
+  return entries.length
 }
 
 /** Commit writes in chunks of 400 (well under the 500/batch limit). */
@@ -289,7 +331,7 @@ async function main(): Promise<void> {
   console.log(`[ingest] upserting ${matches.length} matches…`)
   await upsertMatches(db, matches)
 
-  const standingsGroups = await upsertStandings(db, standingsRes)
+  const standingsGroups = await upsertStandings(db, standingsRes, matches)
   console.log(`[ingest] upserted ${standingsGroups} group standings.`)
 
   // FINISHED full-time results, keyed by matchId — shared across all groups.

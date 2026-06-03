@@ -117,7 +117,10 @@ export function useMyGroups(): UseMyGroupsResult {
         void run()
       },
       (err) => {
-        setError(err)
+        // Non-fatal: a failure here (e.g. the joined collection-group query) must NOT
+        // blank the page — owned groups still render. Surface it without clobbering owned.
+        console.warn('[useMyGroups] joined-groups query failed:', err)
+        setJoined([])
         setJoinedLoaded(true)
       },
     )

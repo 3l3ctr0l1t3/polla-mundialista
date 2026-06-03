@@ -133,6 +133,17 @@ service cloud.firestore {
       allow read, write: if isSignedIn() && request.auth.uid == uid;
     }
 
+    // ---- members collection-group read --------------------------------------
+    // Authorizes `collectionGroup('members').where('uid','==', myUid)` (useMyGroups:
+    // "the groups I've joined"). Collection-group queries are authorized by a recursive
+    // match analyzed against the query's FIELD filter — a nested per-group match + a
+    // doc-id rule do NOT cover them. Read-only here, scoped to the caller's own member
+    // docs (`resource.data.uid == request.auth.uid`); writes stay governed by the nested
+    // groups/{gid}/members rule. No security widening (you can already read your own doc).
+    match /{path=**}/members/{memberUid} {
+      allow read: if isSignedIn() && resource.data.uid == request.auth.uid;
+    }
+
     // ---- groups -------------------------------------------------------------
     // Open app access: any signed-in user may read group metadata (needed for the join
     // page) and create a group they own. Group metadata isn't sensitive (knowing a gid
@@ -160,6 +171,9 @@ service cloud.firestore {
       //   - delete: group admin only.
 
       match /members/{uid} {
+        // Single-doc reads: own doc (by id, incl. a non-existent one — GroupProvider) or
+        // a group member/admin reading the roster. The collectionGroup(members) query in
+        // useMyGroups is authorized separately by the recursive-wildcard rule below.
         allow read: if isSignedIn()
           && (request.auth.uid == uid || isGroupMember(gid));
 

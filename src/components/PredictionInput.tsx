@@ -84,7 +84,19 @@ function GoalStepper({ label, value, disabled, onChange }: StepperProps) {
               style: { textAlign: 'center', width: '3ch' },
             },
           }}
-          sx={{ width: 72 }}
+          sx={{
+            width: 72,
+            // Hide the native number-input spinners — the +/- buttons are the stepper.
+            '& input[type=number]': { MozAppearance: 'textfield' },
+            '& input[type=number]::-webkit-outer-spin-button': {
+              WebkitAppearance: 'none',
+              margin: 0,
+            },
+            '& input[type=number]::-webkit-inner-spin-button': {
+              WebkitAppearance: 'none',
+              margin: 0,
+            },
+          }}
         />
         <IconButton
           size="small"

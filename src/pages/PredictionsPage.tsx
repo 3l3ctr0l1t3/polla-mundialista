@@ -1,8 +1,10 @@
 /**
  * PredictionsPage — the core participant interaction (ticket 005).
  *
- * Lists upcoming matches (not yet finished, ordered by kickoff) and, for each, renders a
- * server-time countdown and the participant's prediction input prefilled from their saved
+ * Lists upcoming matches (not yet finished, ordered by kickoff) grouped by local-time day,
+ * and for each renders a prediction card in the same visual language as the Fixtures page:
+ * the shared `MatchTeams` header (crests/flags, names, group/stage · date, a live countdown)
+ * with the participant's score steppers embedded below, prefilled from their saved
  * predictions. Provides Loading / Empty / Error states.
  *
  * Matches are read via a small local `onSnapshot` subscription so this page has no hard
@@ -11,13 +13,13 @@
 import { useEffect, useState } from 'react'
 import Box from '@mui/material/Box'
 import Stack from '@mui/material/Stack'
-import Paper from '@mui/material/Paper'
 import Typography from '@mui/material/Typography'
+import EventBusyIcon from '@mui/icons-material/EventBusy'
 import { onSnapshot, orderBy, query } from 'firebase/firestore'
 import { matchesCol } from '../firebase/db'
 import { LoadingState, EmptyState, ErrorState } from '../components/states'
-import { CountdownToKickoff } from '../components/CountdownToKickoff'
-import { PredictionInput } from '../components/PredictionInput'
+import { PredictionCard } from '../components/PredictionCard'
+import { groupMatchesByDay } from '../hooks/matchGrouping'
 import { useGroupPredictions } from '../hooks/useGroupPredictions'
 import { useGroup } from '../group/useGroup'
 import { useServerTime } from '../hooks/useServerTime'
@@ -53,56 +55,48 @@ export function PredictionsPage() {
   const { predictions, error: predError } = useGroupPredictions(gid)
   const { now } = useServerTime()
 
-  if (error || predError) {
-    return (
-      <ErrorState title="Couldn't load predictions" description={(error ?? predError)?.message} />
-    )
-  }
-
-  if (matches === null) {
-    return <LoadingState rows={4} label="Loading matches" />
-  }
-
-  if (matches.length === 0) {
-    return (
-      <EmptyState
-        title="No upcoming matches"
-        description="Predictions will open as soon as the fixtures are scheduled."
-      />
-    )
-  }
-
   return (
-    <Box sx={{ maxWidth: 640, mx: 'auto', width: '100%' }}>
+    <Box>
       <Typography variant="h5" component="h1" sx={{ mb: 2 }}>
         Your predictions
       </Typography>
-      <Stack spacing={2}>
-        {matches.map((match) => (
-          <Paper key={match.matchId} variant="outlined" sx={{ p: 2, borderRadius: 3 }}>
-            <Box
-              sx={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                gap: 1,
-                mb: 1.5,
-              }}
-            >
-              <Typography variant="subtitle1" component="h2">
-                {match.homeTeam.shortName} vs {match.awayTeam.shortName}
+
+      {error || predError ? (
+        <ErrorState title="Couldn't load predictions" description={(error ?? predError)?.message} />
+      ) : matches === null ? (
+        <LoadingState rows={4} label="Loading matches" />
+      ) : matches.length === 0 ? (
+        <EmptyState
+          icon={<EventBusyIcon fontSize="inherit" />}
+          title="No upcoming matches"
+          description="Predictions will open as soon as the fixtures are scheduled."
+        />
+      ) : (
+        <Stack spacing={3}>
+          {groupMatchesByDay(matches).map((day) => (
+            <Box key={day.dayKey} component="section" aria-label={day.label}>
+              <Typography
+                variant="overline"
+                component="h2"
+                sx={{ color: 'text.secondary', display: 'block', mb: 1 }}
+              >
+                {day.label}
               </Typography>
-              <CountdownToKickoff kickoffMs={match.kickoff.toMillis()} now={now} />
+              <Stack spacing={1.5}>
+                {day.matches.map((match) => (
+                  <PredictionCard
+                    key={match.matchId}
+                    gid={gid}
+                    match={match}
+                    existing={predictions[match.matchId]}
+                    now={now}
+                  />
+                ))}
+              </Stack>
             </Box>
-            <PredictionInput
-              gid={gid}
-              match={match}
-              existing={predictions[match.matchId]}
-              now={now}
-            />
-          </Paper>
-        ))}
-      </Stack>
+          ))}
+        </Stack>
+      )}
     </Box>
   )
 }

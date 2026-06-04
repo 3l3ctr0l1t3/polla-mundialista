@@ -14,19 +14,16 @@ import dayjs from 'dayjs'
 import Card from '@mui/material/Card'
 import CardContent from '@mui/material/CardContent'
 import CardActions from '@mui/material/CardActions'
-import Box from '@mui/material/Box'
-import Stack from '@mui/material/Stack'
 import Button from '@mui/material/Button'
 import Typography from '@mui/material/Typography'
 import Chip from '@mui/material/Chip'
-import Avatar from '@mui/material/Avatar'
-import SportsSoccerIcon from '@mui/icons-material/SportsSoccer'
 import GroupsIcon from '@mui/icons-material/Groups'
 import type { ChipProps } from '@mui/material/Chip'
-import type { Match, MatchStatus, Team } from '../shared/types'
+import type { Match, MatchStatus } from '../shared/types'
 import { isTbdTeam } from '../hooks/matchGrouping'
 import { useServerTime } from '../hooks/useServerTime'
 import { MatchPredictionsDialog } from './MatchPredictionsDialog'
+import { MatchTeams, TBD_LABEL } from './MatchTeams'
 
 export interface MatchCardProps {
   match: Match
@@ -36,8 +33,6 @@ export interface MatchCardProps {
    */
   gid?: string
 }
-
-const TBD_LABEL = 'TBD'
 
 /** Status -> { label, MUI chip color }. Color comes from the theme palette. */
 function statusChip(status: MatchStatus): { label: string; color: ChipProps['color'] } {
@@ -56,45 +51,6 @@ function statusChip(status: MatchStatus): { label: string; color: ChipProps['col
     default:
       return { label: 'Scheduled', color: 'default' }
   }
-}
-
-function TeamRow({ team, align }: { team: Team; align: 'start' | 'end' }) {
-  const tbd = isTbdTeam(team)
-  const name = tbd ? TBD_LABEL : team.name
-  const crest = !tbd && team.crest ? team.crest : undefined
-  const avatar = (
-    <Avatar
-      src={crest}
-      alt=""
-      aria-hidden
-      sx={{ width: 28, height: 28, bgcolor: 'action.hover' }}
-      slotProps={{ img: { loading: 'lazy' } }}
-    >
-      <SportsSoccerIcon fontSize="small" />
-    </Avatar>
-  )
-  return (
-    <Stack
-      direction={align === 'end' ? 'row-reverse' : 'row'}
-      spacing={1}
-      sx={{
-        minWidth: 0,
-        flex: 1,
-        alignItems: 'center',
-        justifyContent: align === 'end' ? 'flex-end' : 'flex-start',
-      }}
-    >
-      {avatar}
-      <Typography
-        variant="body1"
-        noWrap
-        sx={{ fontWeight: 600, color: tbd ? 'text.secondary' : 'text.primary' }}
-        title={name}
-      >
-        {name}
-      </Typography>
-    </Stack>
-  )
 }
 
 export function MatchCard({ match, gid }: MatchCardProps) {
@@ -132,22 +88,13 @@ export function MatchCard({ match, gid }: MatchCardProps) {
       aria-label={`${isTbdTeam(homeTeam) ? TBD_LABEL : homeTeam.name} versus ${isTbdTeam(awayTeam) ? TBD_LABEL : awayTeam.name}`}
     >
       <CardContent sx={{ py: 1.5, '&:last-child': { pb: 1.5 } }}>
-        <Stack
-          direction="row"
-          sx={{ mb: 1, alignItems: 'center', justifyContent: 'space-between' }}
-        >
-          <Typography variant="caption" color="text.secondary" noWrap>
-            {match.group ? `Group ${match.group}` : stageLabel(match)} ·{' '}
-            {kickoffLocal.format('MMM D')}
-          </Typography>
-          <Chip size="small" label={chip.label} color={chip.color} variant="outlined" />
-        </Stack>
-
-        <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center' }}>
-          <TeamRow team={homeTeam} align="start" />
-          <Box sx={{ px: 1, textAlign: 'center', minWidth: 56 }}>{center}</Box>
-          <TeamRow team={awayTeam} align="end" />
-        </Stack>
+        <MatchTeams
+          homeTeam={homeTeam}
+          awayTeam={awayTeam}
+          center={center}
+          caption={`${match.group ? `Group ${match.group}` : stageLabel(match)} · ${kickoffLocal.format('MMM D')}`}
+          trailing={<Chip size="small" label={chip.label} color={chip.color} variant="outlined" />}
+        />
       </CardContent>
 
       {gid && (

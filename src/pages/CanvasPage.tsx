@@ -10,14 +10,29 @@ import Box from '@mui/material/Box'
 import Stack from '@mui/material/Stack'
 import Typography from '@mui/material/Typography'
 import Alert from '@mui/material/Alert'
+import Avatar from '@mui/material/Avatar'
+import Card from '@mui/material/Card'
+import CardContent from '@mui/material/CardContent'
 import {
   sampleScheduledMatch,
   sampleLiveMatch,
   sampleFinishedMatch,
   sampleTbdMatch,
 } from '../dev/sampleData'
+import { SCORE_INPUT_OPTIONS } from '../dev/scoreInputs'
 import { MatchCard } from '../components/MatchCard'
 import { MatchLabCard } from '../components/MatchLabCard'
+
+/** A flag avatar from a sample team crest, for the score-input options preview. */
+function Flag({ crest, name }: { crest: string; name: string }) {
+  return (
+    <Avatar
+      src={crest || undefined}
+      alt={name}
+      sx={{ width: 32, height: 32, flexShrink: 0, bgcolor: 'action.hover' }}
+    />
+  )
+}
 
 const SAMPLES = [
   { label: 'Scheduled (predictable)', match: sampleScheduledMatch },
@@ -48,6 +63,37 @@ export function CanvasPage() {
       </Alert>
 
       <Stack spacing={3}>
+        <Section title="Score input options — what goes between the flags">
+          {SCORE_INPUT_OPTIONS.map(({ id, label, Component }) => (
+            <Card key={id} variant="outlined" sx={{ borderRadius: 3 }}>
+              <CardContent sx={{ py: 1.5, '&:last-child': { pb: 1.5 } }}>
+                <Typography
+                  variant="caption"
+                  color="text.secondary"
+                  sx={{ display: 'block', mb: 1 }}
+                >
+                  {label}
+                </Typography>
+                <Stack
+                  direction="row"
+                  spacing={1.5}
+                  sx={{ alignItems: 'center', justifyContent: 'center' }}
+                >
+                  <Flag
+                    crest={sampleScheduledMatch.homeTeam.crest}
+                    name={sampleScheduledMatch.homeTeam.name}
+                  />
+                  <Component />
+                  <Flag
+                    crest={sampleScheduledMatch.awayTeam.crest}
+                    name={sampleScheduledMatch.awayTeam.name}
+                  />
+                </Stack>
+              </CardContent>
+            </Card>
+          ))}
+        </Section>
+
         <Section title="MatchLabCard — centered (name · flag · prediction)">
           {SAMPLES.map(({ label, match, pick }) => (
             <Box key={`lab-${match.matchId}`}>

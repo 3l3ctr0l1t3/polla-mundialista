@@ -14,7 +14,6 @@
   },
   "nav": {
     "fixtures": "Partidos",
-    "predictions": "Predicciones",
     "leaderboard": "Tabla",
     "standings": "Grupos",
     "admin": "Admin",
@@ -129,7 +128,8 @@
     "predicted": "Predijo {{home}} a {{away}}",
     "pts": "{{count}} pts",
     "earnedPoints": "Ganó {{count}} puntos",
-    "openDialog": "Predicciones"
+    "openDialog": "Predicciones",
+    "yourPrediction": "Tu predicción {{home}}–{{away}}"
   },
   "match": {
     "tbd": "Por definir",

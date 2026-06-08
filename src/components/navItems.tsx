@@ -1,7 +1,6 @@
 import type { ReactNode } from 'react'
 import type { TFunction } from 'i18next'
 import CalendarMonthIcon from '@mui/icons-material/CalendarMonth'
-import EditNoteIcon from '@mui/icons-material/EditNote'
 import LeaderboardIcon from '@mui/icons-material/Leaderboard'
 import StadiumIcon from '@mui/icons-material/Stadium'
 import HowToRegIcon from '@mui/icons-material/HowToReg'
@@ -28,7 +27,6 @@ export interface NavItem {
 export function defaultNavItems(t: TFunction): NavItem[] {
   return [
     { key: 'fixtures', label: t('nav.fixtures'), icon: <CalendarMonthIcon /> },
-    { key: 'predictions', label: t('nav.predictions'), icon: <EditNoteIcon /> },
     { key: 'leaderboard', label: t('nav.leaderboard'), icon: <LeaderboardIcon /> },
     { key: 'standings', label: t('nav.standings'), icon: <StadiumIcon /> },
   ]

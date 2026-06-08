@@ -20,8 +20,10 @@ import { useTranslation } from 'react-i18next'
 import { useMatches } from '../hooks/useMatches'
 import { useMeta } from '../hooks/useMeta'
 import { groupMatchesByDay } from '../hooks/matchGrouping'
-import { MatchCard } from '../components/MatchCard'
+import { FixtureCard } from '../components/FixtureCard'
 import { useGroup } from '../group/useGroup'
+import { useGroupPredictions } from '../hooks/useGroupPredictions'
+import { useServerTime } from '../hooks/useServerTime'
 import { LoadingState, EmptyState, ErrorState } from '../components/states'
 import type { MetaConfig } from '../shared/types'
 
@@ -58,6 +60,8 @@ export function FixturesPage() {
   const { matches, loading, error } = useMatches()
   const { meta } = useMeta()
   const { gid } = useGroup()
+  const { predictions } = useGroupPredictions(gid)
+  const { now } = useServerTime()
 
   return (
     <Box>
@@ -100,7 +104,13 @@ export function FixturesPage() {
               </Typography>
               <Stack spacing={1.5}>
                 {day.matches.map((m) => (
-                  <MatchCard key={m.matchId} match={m} gid={gid} />
+                  <FixtureCard
+                    key={m.matchId}
+                    gid={gid}
+                    match={m}
+                    existing={predictions[m.matchId]}
+                    now={now}
+                  />
                 ))}
               </Stack>
             </Box>

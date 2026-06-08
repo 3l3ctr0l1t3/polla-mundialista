@@ -1,6 +1,6 @@
-import { render, screen, waitFor, fireEvent } from '@testing-library/react'
+import { renderHook, act, waitFor } from '@testing-library/react'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { PredictionInput } from './PredictionInput'
+import { useSavePrediction } from './useSavePrediction'
 import type { Match, Prediction } from '../shared/types'
 
 // --- mocks -----------------------------------------------------------------
@@ -51,34 +51,29 @@ beforeEach(() => {
   groupPredictionDocMock.mockClear()
 })
 
-describe('PredictionInput', () => {
-  it('allows editing the score before kickoff', () => {
-    render(<PredictionInput gid="g1" match={makeMatch()} now={beforeKickoff} />)
-    const home = screen.getByLabelText('HOM goals') as HTMLInputElement
-    const away = screen.getByLabelText('AWY goals') as HTMLInputElement
-    expect(home).not.toBeDisabled()
-    expect(away).not.toBeDisabled()
-    expect(screen.getByRole('button', { name: /save prediction/i })).not.toBeDisabled()
+describe('useSavePrediction', () => {
+  it('is unlocked before kickoff and locked at/after kickoff', () => {
+    const open = renderHook(() => useSavePrediction('g1', makeMatch(), undefined, beforeKickoff))
+    expect(open.result.current.locked).toBe(false)
+
+    const closed = renderHook(() => useSavePrediction('g1', makeMatch(), undefined, afterKickoff))
+    expect(closed.result.current.locked).toBe(true)
   })
 
-  it('disables inputs at/after kickoff', () => {
-    render(<PredictionInput gid="g1" match={makeMatch()} now={afterKickoff} />)
-    expect(screen.getByLabelText('HOM goals')).toBeDisabled()
-    expect(screen.getByLabelText('AWY goals')).toBeDisabled()
-    expect(screen.getByRole('button', { name: /save prediction/i })).toBeDisabled()
-  })
+  it('writes a new prediction with the right ref + shape (createdAt + updatedAt, merge)', async () => {
+    const { result } = renderHook(() =>
+      useSavePrediction('g1', makeMatch(), undefined, beforeKickoff),
+    )
 
-  it('writes a new prediction with the right shape (createdAt + updatedAt, merge)', async () => {
-    render(<PredictionInput gid="g1" match={makeMatch()} now={beforeKickoff} />)
+    act(() => {
+      result.current.setHomeGoals(2)
+      result.current.setAwayGoals(1)
+    })
+    await act(async () => {
+      await result.current.save()
+    })
 
-    // Bump home to 2 and away to 1 via the increment buttons.
-    fireEvent.click(screen.getByLabelText('Increase HOM goals'))
-    fireEvent.click(screen.getByLabelText('Increase HOM goals'))
-    fireEvent.click(screen.getByLabelText('Increase AWY goals'))
-
-    fireEvent.click(screen.getByRole('button', { name: /save prediction/i }))
-
-    await waitFor(() => expect(setDocMock).toHaveBeenCalledTimes(1))
+    expect(setDocMock).toHaveBeenCalledTimes(1)
     const [ref, payload, options] = setDocMock.mock.calls[0]
     expect(groupPredictionDocMock).toHaveBeenCalledWith('g1', 'u1', 'm42')
     expect(ref).toEqual({ __ref: 'g1/u1_m42' })
@@ -93,7 +88,7 @@ describe('PredictionInput', () => {
     expect(options).toEqual({ merge: true })
   })
 
-  it('omits createdAt when editing an existing prediction and never writes points', async () => {
+  it('omits createdAt when editing an existing prediction and never writes points/breakdown', async () => {
     const existing: Prediction = {
       uid: 'u1',
       matchId: 'm42',
@@ -102,11 +97,15 @@ describe('PredictionInput', () => {
       createdAt: { toMillis: () => 0 } as Prediction['createdAt'],
       updatedAt: { toMillis: () => 0 } as Prediction['updatedAt'],
     }
-    render(<PredictionInput gid="g1" match={makeMatch()} existing={existing} now={beforeKickoff} />)
+    const { result } = renderHook(() =>
+      useSavePrediction('g1', makeMatch(), existing, beforeKickoff),
+    )
 
-    fireEvent.click(screen.getByRole('button', { name: /update prediction/i }))
+    await act(async () => {
+      await result.current.save()
+    })
 
-    await waitFor(() => expect(setDocMock).toHaveBeenCalledTimes(1))
+    expect(setDocMock).toHaveBeenCalledTimes(1)
     const payload = setDocMock.mock.calls[0][1] as Record<string, unknown>
     expect(payload).not.toHaveProperty('createdAt')
     expect(payload).not.toHaveProperty('points')
@@ -114,14 +113,41 @@ describe('PredictionInput', () => {
     expect(payload).toMatchObject({ uid: 'u1', matchId: 'm42', updatedAt: 'SERVER_TS' })
   })
 
-  it('shows a "match already started" snackbar when the write is rejected by rules', async () => {
+  it('does not write when locked (at/after kickoff)', async () => {
+    const { result } = renderHook(() =>
+      useSavePrediction('g1', makeMatch(), undefined, afterKickoff),
+    )
+    await act(async () => {
+      await result.current.save()
+    })
+    expect(setDocMock).not.toHaveBeenCalled()
+  })
+
+  it('surfaces a "match already started" snackbar when the write is rejected by rules', async () => {
     setDocMock.mockRejectedValueOnce(
       Object.assign(new Error('denied'), { code: 'permission-denied' }),
     )
+    const { result } = renderHook(() =>
+      useSavePrediction('g1', makeMatch(), undefined, beforeKickoff),
+    )
 
-    render(<PredictionInput gid="g1" match={makeMatch()} now={beforeKickoff} />)
-    fireEvent.click(screen.getByRole('button', { name: /save prediction/i }))
+    await act(async () => {
+      await result.current.save()
+    })
 
-    expect(await screen.findByText(/already started/i)).toBeInTheDocument()
+    await waitFor(() => expect(result.current.snack?.severity).toBe('error'))
+    expect(result.current.snack?.message).toMatch(/already started/i)
+  })
+
+  it('dismissSnack clears the snackbar', async () => {
+    const { result } = renderHook(() =>
+      useSavePrediction('g1', makeMatch(), undefined, beforeKickoff),
+    )
+    await act(async () => {
+      await result.current.save()
+    })
+    expect(result.current.snack).not.toBeNull()
+    act(() => result.current.dismissSnack())
+    expect(result.current.snack).toBeNull()
   })
 })

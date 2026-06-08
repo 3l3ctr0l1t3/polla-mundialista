@@ -23,6 +23,7 @@ Dependency order: 001 → 002 → 003 → (004, 006 parallel) → 005 → 007 �
 | 015 | Admin removes a member | ✅ | 012 | firestore-rules-engineer + react-mui-builder |
 | 016 | Installable PWA (app shell offline) | ✅¹ | 009, 010 | react-mui-builder |
 | 017 | Localization (i18n) + Spanish | ✅ | 009 | react-mui-builder |
+| 018 | Unified fixture+prediction card | ✅ | 013, 017 | react-mui-builder |
 
 > 012 restructures predictions/leaderboard/membership to be **per-group** (supersedes the single-pool
 > parts of 005/007/011); matches/standings/config stay global. Built in phases A–D (see 012/plan.md).

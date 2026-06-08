@@ -20,16 +20,22 @@ vi.mock('../hooks/useMeta', () => ({
 }))
 
 // FixturesPage runs under a group route; stub the group context so the page can pass
-// `gid` to each MatchCard's Predictions action without a real <GroupProvider>.
+// `gid` to each FixtureCard without a real <GroupProvider>.
 vi.mock('../group/useGroup', () => ({
   useGroup: () => ({ gid: 'g1' }),
 }))
 
-// MatchCard's Predictions action uses server time and opens a Firestore-backed dialog;
-// stub both so this page test stays focused on the fixtures list (covered by their own
-// tests). The real MatchCard still renders teams/scores/TBD placeholders.
+// FixtureCard reads the viewer's per-group predictions, server time, and (via
+// useSavePrediction) the signed-in user; stub them so this page test stays focused on the
+// fixtures list. The real FixtureCard still renders teams/scores/TBD placeholders.
+vi.mock('../hooks/useGroupPredictions', () => ({
+  useGroupPredictions: () => ({ predictions: {}, loading: false, error: null }),
+}))
 vi.mock('../hooks/useServerTime', () => ({
   useServerTime: () => ({ now: () => Date.now(), offsetMs: 0, offsetKnown: true }),
+}))
+vi.mock('../auth/useAuth', () => ({
+  useAuth: () => ({ user: { uid: 'u1', email: 'a@b.com' }, loading: false }),
 }))
 vi.mock('../components/MatchPredictionsDialog', () => ({
   MatchPredictionsDialog: () => null,
@@ -73,9 +79,12 @@ describe('FixturesPage', () => {
     expect(screen.getByText('permission-denied')).toBeInTheDocument()
   })
 
-  it('renders matches grouped by day with the freshness badge', () => {
+  it('renders one FixtureCard per match, grouped by day with the freshness badge', () => {
     useMatchesMock.mockReturnValue({ matches: sampleMatches, loading: false, error: null })
     renderPage(<FixturesPage />)
+
+    // One unified FixtureCard per match (each card carries a "versus" aria-label).
+    expect(screen.getAllByLabelText(/versus/i).length).toBe(sampleMatches.length)
 
     // Teams from the sample set render (Mexico appears in two sample fixtures).
     expect(screen.getAllByText('Mexico').length).toBeGreaterThanOrEqual(1)

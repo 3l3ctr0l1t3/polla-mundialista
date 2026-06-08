@@ -14,7 +14,6 @@
   },
   "nav": {
     "fixtures": "Fixtures",
-    "predictions": "Predictions",
     "leaderboard": "Leaderboard",
     "standings": "Standings",
     "admin": "Admin",
@@ -129,7 +128,8 @@
     "predicted": "Predicted {{home}} to {{away}}",
     "pts": "{{count}} pts",
     "earnedPoints": "Earned {{count}} points",
-    "openDialog": "Predictions"
+    "openDialog": "Predictions",
+    "yourPrediction": "Your prediction {{home}}–{{away}}"
   },
   "match": {
     "tbd": "TBD",

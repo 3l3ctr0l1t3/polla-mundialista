@@ -3,9 +3,9 @@
  *
  * Merges the old read-only `MatchCard` (status/score + reveal dialog) and the old
  * `PredictionCard`/`PredictionInput` (score steppers + save) into a single surface on the
- * Fixtures page. It uses the LOCKED centered layout prototyped in `MatchLabCard`: caption +
- * status on top, then each team as a centered column with the NAME above its FLAG, then the
- * prediction steppers (upcoming) or the result score (live/finished) centered beneath.
+ * Fixtures page. Layout is a single centered line — home name · home flag · prediction/result ·
+ * away flag · away name (flags inboard next to the score, names on the outside) — with the
+ * caption + status above it.
  *
  * UPCOMING (not final, not in-play, real teams): renders the two centered goal steppers +
  * Save/Update button driven by `useSavePrediction` (the ONE write path — never points), with
@@ -76,29 +76,48 @@ function stageLabel(match: Match, t: TFunction): string {
   }
 }
 
-/** A team as a centered column: name on top, flag below. */
-function TeamColumn({ team, tbdLabel }: { team: Team; tbdLabel: string }) {
+/** A team name — outer element on its side of the line; shrinks/ellipsizes to fit. */
+function TeamName({
+  team,
+  tbdLabel,
+  align,
+}: {
+  team: Team
+  tbdLabel: string
+  align: 'left' | 'right'
+}) {
   const tbd = isTbdTeam(team)
   const name = tbd ? tbdLabel : team.name
   return (
-    <Stack spacing={0.75} sx={{ alignItems: 'center', flex: 1, minWidth: 0 }}>
-      <Typography
-        variant="body2"
-        noWrap
-        title={name}
-        sx={{ fontWeight: 600, maxWidth: '100%', color: tbd ? 'text.secondary' : 'text.primary' }}
-      >
-        {name}
-      </Typography>
-      <Avatar
-        src={!tbd && team.crest ? team.crest : undefined}
-        alt={name}
-        sx={{ width: 44, height: 44, bgcolor: 'action.hover' }}
-        slotProps={{ img: { loading: 'lazy' } }}
-      >
-        <SportsSoccerIcon />
-      </Avatar>
-    </Stack>
+    <Typography
+      variant="body2"
+      noWrap
+      title={name}
+      sx={{
+        flex: 1,
+        minWidth: 0,
+        textAlign: align,
+        fontWeight: 600,
+        color: tbd ? 'text.secondary' : 'text.primary',
+      }}
+    >
+      {name}
+    </Typography>
+  )
+}
+
+/** A team flag — sits inboard, next to the score/steppers. */
+function TeamFlag({ team, tbdLabel }: { team: Team; tbdLabel: string }) {
+  const tbd = isTbdTeam(team)
+  return (
+    <Avatar
+      src={!tbd && team.crest ? team.crest : undefined}
+      alt={tbd ? tbdLabel : team.name}
+      sx={{ width: 32, height: 32, flexShrink: 0, bgcolor: 'action.hover' }}
+      slotProps={{ img: { loading: 'lazy' } }}
+    >
+      <SportsSoccerIcon fontSize="small" />
+    </Avatar>
   )
 }
 
@@ -210,86 +229,94 @@ export function FixtureCard({ gid, match, existing, now }: FixtureCardProps) {
     >
       <CardContent sx={{ py: 2, textAlign: 'center', '&:last-child': { pb: 2 } }}>
         <Stack spacing={1.5} sx={{ alignItems: 'center' }}>
+          {/* Top row: caption left, countdown (upcoming) / status (live·finished) top-right. */}
           <Stack
             direction="row"
             spacing={1}
-            sx={{ alignItems: 'center', flexWrap: 'wrap', justifyContent: 'center' }}
+            sx={{ width: '100%', alignItems: 'center', justifyContent: 'space-between', gap: 1 }}
           >
-            <Typography variant="caption" color="text.secondary">
+            <Typography variant="caption" color="text.secondary" noWrap sx={{ minWidth: 0 }}>
               {caption}
             </Typography>
-            {statusChip}
+            {editable ? (
+              <CountdownToKickoff kickoffMs={kickoff.toMillis()} now={now} />
+            ) : (
+              statusChip
+            )}
           </Stack>
 
-          {/* Names + flags: two centered columns (name above flag). */}
+          {/* One line: home name · home flag · prediction/result · away flag · away name. */}
           <Stack
             direction="row"
-            spacing={2}
-            sx={{ width: '100%', maxWidth: 340, justifyContent: 'center' }}
+            spacing={1}
+            sx={{ width: '100%', alignItems: 'center', justifyContent: 'center' }}
           >
-            <TeamColumn team={homeTeam} tbdLabel={tbdLabel} />
-            <TeamColumn team={awayTeam} tbdLabel={tbdLabel} />
+            <TeamName team={homeTeam} tbdLabel={tbdLabel} align="right" />
+            <TeamFlag team={homeTeam} tbdLabel={tbdLabel} />
+
+            <Box sx={{ flexShrink: 0, px: 0.5 }}>
+              {editable ? (
+                <Stack direction="row" spacing={0.5} sx={{ alignItems: 'center' }}>
+                  <Stepper
+                    value={homeGoals}
+                    disabled={inputsDisabled}
+                    onChange={setHomeGoals}
+                    ariaLabel={t('predictions.teamGoals', { team: homeLabel })}
+                    increaseLabel={t('predictions.increaseGoals', { team: homeLabel })}
+                    decreaseLabel={t('predictions.decreaseGoals', { team: homeLabel })}
+                  />
+                  <Typography aria-hidden sx={{ fontWeight: 700 }}>
+                    –
+                  </Typography>
+                  <Stepper
+                    value={awayGoals}
+                    disabled={inputsDisabled}
+                    onChange={setAwayGoals}
+                    ariaLabel={t('predictions.teamGoals', { team: awayLabel })}
+                    increaseLabel={t('predictions.increaseGoals', { team: awayLabel })}
+                    decreaseLabel={t('predictions.decreaseGoals', { team: awayLabel })}
+                  />
+                </Stack>
+              ) : showResult ? (
+                <Typography
+                  component="p"
+                  aria-label={t('match.score', { home: score.home, away: score.away })}
+                  sx={{
+                    fontWeight: 800,
+                    fontVariantNumeric: 'tabular-nums',
+                    fontSize: '1.6rem',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  {score.home}&nbsp;–&nbsp;{score.away}
+                </Typography>
+              ) : (
+                <Typography
+                  variant="body2"
+                  color="text.secondary"
+                  sx={{ whiteSpace: 'nowrap' }}
+                  aria-label={t('match.kickoff', { when: kickoffLocal.format('MMM D, HH:mm') })}
+                >
+                  {kickoffLocal.format('HH:mm')}
+                </Typography>
+              )}
+            </Box>
+
+            <TeamFlag team={awayTeam} tbdLabel={tbdLabel} />
+            <TeamName team={awayTeam} tbdLabel={tbdLabel} align="left" />
           </Stack>
 
-          {/* Prediction (upcoming) / result (live/finished) / kickoff, centered below. */}
-          {editable ? (
-            <Stack
-              direction="row"
-              spacing={2}
-              sx={{ alignItems: 'center', justifyContent: 'center' }}
-            >
-              <Stepper
-                value={homeGoals}
-                disabled={inputsDisabled}
-                onChange={setHomeGoals}
-                ariaLabel={t('predictions.teamGoals', { team: homeLabel })}
-                increaseLabel={t('predictions.increaseGoals', { team: homeLabel })}
-                decreaseLabel={t('predictions.decreaseGoals', { team: homeLabel })}
-              />
-              <Typography aria-hidden sx={{ fontWeight: 700 }}>
-                –
-              </Typography>
-              <Stepper
-                value={awayGoals}
-                disabled={inputsDisabled}
-                onChange={setAwayGoals}
-                ariaLabel={t('predictions.teamGoals', { team: awayLabel })}
-                increaseLabel={t('predictions.increaseGoals', { team: awayLabel })}
-                decreaseLabel={t('predictions.decreaseGoals', { team: awayLabel })}
-              />
-            </Stack>
-          ) : showResult ? (
-            <Typography
-              component="p"
-              aria-label={t('match.score', { home: score.home, away: score.away })}
-              sx={{ fontWeight: 800, fontVariantNumeric: 'tabular-nums', fontSize: '1.75rem' }}
-            >
-              {score.home}&nbsp;–&nbsp;{score.away}
-            </Typography>
-          ) : (
-            <Typography
-              variant="body2"
-              color="text.secondary"
-              aria-label={t('match.kickoff', { when: kickoffLocal.format('MMM D, HH:mm') })}
-            >
-              {kickoffLocal.format('ddd MMM D · HH:mm')}
-            </Typography>
-          )}
-
-          {/* Upcoming: Save/Update + a live countdown chip near the caption. */}
+          {/* Upcoming: Save/Update (the "Locks in…" countdown lives top-right). */}
           {editable && (
-            <Stack spacing={1} sx={{ alignItems: 'center' }}>
-              <Button
-                variant="contained"
-                color="primary"
-                size="small"
-                disabled={inputsDisabled}
-                onClick={() => void save()}
-              >
-                {existing ? t('predictions.update') : t('predictions.save')}
-              </Button>
-              <CountdownToKickoff kickoffMs={kickoff.toMillis()} now={now} />
-            </Stack>
+            <Button
+              variant="contained"
+              color="primary"
+              size="small"
+              disabled={inputsDisabled}
+              onClick={() => void save()}
+            >
+              {existing ? t('predictions.update') : t('predictions.save')}
+            </Button>
           )}
 
           {/* Live/finished: surface the viewer's own prediction subtly. */}

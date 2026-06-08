@@ -27,11 +27,13 @@ import ContentCopyIcon from '@mui/icons-material/ContentCopy'
 import ArrowBackIcon from '@mui/icons-material/ArrowBack'
 import { doc, serverTimestamp, setDoc } from 'firebase/firestore'
 import { Link as RouterLink, useNavigate } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { groupsCol, groupDoc } from '../firebase/db'
 import { useAuth } from '../auth/useAuth'
 import { generateInviteCode } from '../group/inviteCode'
 
 export function CreateGroupPage() {
+  const { t } = useTranslation()
   const { user } = useAuth()
   const navigate = useNavigate()
   const [name, setName] = useState('')
@@ -63,7 +65,7 @@ export function CreateGroupPage() {
       })
       setCreated({ gid, name: trimmed })
     } catch {
-      setError('Could not create the group. Please try again.')
+      setError(t('groups.createError'))
     } finally {
       setBusy(false)
     }
@@ -74,7 +76,7 @@ export function CreateGroupPage() {
       await navigator.clipboard.writeText(inviteUrl)
       setCopied(true)
     } catch {
-      setError('Could not copy the link. You can select and copy it manually.')
+      setError(t('groups.copyError'))
     }
   }
 
@@ -87,7 +89,7 @@ export function CreateGroupPage() {
         size="small"
         sx={{ mb: 2 }}
       >
-        My Groups
+        {t('common.myGroups')}
       </Button>
 
       <Card variant="outlined" sx={{ borderRadius: 4 }}>
@@ -96,15 +98,15 @@ export function CreateGroupPage() {
             <Stack spacing={3}>
               <Stack spacing={1}>
                 <Typography variant="h5" component="h1">
-                  {created.name} is ready
+                  {t('groups.readyTitle', { name: created.name })}
                 </Typography>
                 <Typography variant="body2" color="text.secondary">
-                  Share this link so friends can request to join. You approve each request.
+                  {t('groups.readySubtitle')}
                 </Typography>
               </Stack>
 
               <TextField
-                label="Invite link"
+                label={t('groups.inviteLink')}
                 value={inviteUrl}
                 fullWidth
                 slotProps={{
@@ -112,7 +114,11 @@ export function CreateGroupPage() {
                     readOnly: true,
                     endAdornment: (
                       <InputAdornment position="end">
-                        <IconButton aria-label="Copy invite link" onClick={handleCopy} edge="end">
+                        <IconButton
+                          aria-label={t('groups.copyInviteLink')}
+                          onClick={handleCopy}
+                          edge="end"
+                        >
                           <ContentCopyIcon fontSize="small" />
                         </IconButton>
                       </InputAdornment>
@@ -126,22 +132,22 @@ export function CreateGroupPage() {
                 fullWidth
                 onClick={() => navigate(`/g/${created.gid}/fixtures`)}
               >
-                Go to {created.name}
+                {t('groups.goToGroup', { name: created.name })}
               </Button>
             </Stack>
           ) : (
             <Stack spacing={3}>
               <Stack spacing={1}>
                 <Typography variant="h5" component="h1">
-                  Create a group
+                  {t('groups.createTitle')}
                 </Typography>
                 <Typography variant="body2" color="text.secondary">
-                  You'll be its admin and get an invite link to share.
+                  {t('groups.createSubtitle')}
                 </Typography>
               </Stack>
 
               <TextField
-                label="Group name"
+                label={t('groups.groupName')}
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 onKeyDown={(e) => {
@@ -160,7 +166,7 @@ export function CreateGroupPage() {
                 disabled={busy || name.trim().length === 0}
                 fullWidth
               >
-                Create group
+                {t('groups.createGroup')}
               </Button>
             </Stack>
           )}
@@ -174,7 +180,7 @@ export function CreateGroupPage() {
         anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
       >
         <Alert severity="success" variant="filled" onClose={() => setCopied(false)}>
-          Invite link copied
+          {t('groups.inviteCopied')}
         </Alert>
       </Snackbar>
 

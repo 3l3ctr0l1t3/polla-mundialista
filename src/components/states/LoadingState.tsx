@@ -1,6 +1,7 @@
 import Box from '@mui/material/Box'
 import Skeleton from '@mui/material/Skeleton'
 import Stack from '@mui/material/Stack'
+import { useTranslation } from 'react-i18next'
 
 export interface LoadingStateProps {
   /** Number of skeleton rows to render. */
@@ -13,13 +14,15 @@ export interface LoadingStateProps {
  * Reusable loading placeholder built from MD3-styled skeletons.
  * Pages render this while data is being fetched.
  */
-export function LoadingState({ rows = 3, label = 'Loading' }: LoadingStateProps) {
+export function LoadingState({ rows = 3, label }: LoadingStateProps) {
+  const { t } = useTranslation()
+  const resolvedLabel = label ?? t('states.loading')
   return (
     <Box
       role="status"
       aria-live="polite"
       aria-busy="true"
-      aria-label={label}
+      aria-label={resolvedLabel}
       sx={{ width: '100%' }}
     >
       <Stack spacing={2}>

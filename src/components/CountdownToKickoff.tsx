@@ -11,6 +11,8 @@ import { useEffect, useState } from 'react'
 import Chip from '@mui/material/Chip'
 import AccessTimeIcon from '@mui/icons-material/AccessTime'
 import LockIcon from '@mui/icons-material/Lock'
+import { useTranslation } from 'react-i18next'
+import type { TFunction } from 'i18next'
 
 export interface CountdownToKickoffProps {
   /** Kickoff time in milliseconds since the Unix epoch. */
@@ -19,20 +21,21 @@ export interface CountdownToKickoffProps {
   now: () => number
 }
 
-function formatRemaining(ms: number): string {
+function formatRemaining(ms: number, t: TFunction): string {
   const totalSeconds = Math.floor(ms / 1000)
   const days = Math.floor(totalSeconds / 86400)
   const hours = Math.floor((totalSeconds % 86400) / 3600)
   const minutes = Math.floor((totalSeconds % 3600) / 60)
   const seconds = totalSeconds % 60
 
-  if (days > 0) return `${days}d ${hours}h ${minutes}m`
-  if (hours > 0) return `${hours}h ${minutes}m ${seconds}s`
-  if (minutes > 0) return `${minutes}m ${seconds}s`
-  return `${seconds}s`
+  if (days > 0) return t('match.daysHoursMinutes', { days, hours, minutes })
+  if (hours > 0) return t('match.hoursMinutesSeconds', { hours, minutes, seconds })
+  if (minutes > 0) return t('match.minutesSeconds', { minutes, seconds })
+  return t('match.seconds', { seconds })
 }
 
 export function CountdownToKickoff({ kickoffMs, now }: CountdownToKickoffProps) {
+  const { t } = useTranslation()
   const [remaining, setRemaining] = useState(() => kickoffMs - now())
 
   useEffect(() => {
@@ -49,23 +52,25 @@ export function CountdownToKickoff({ kickoffMs, now }: CountdownToKickoffProps) 
     return (
       <Chip
         icon={<LockIcon />}
-        label="Locked"
+        label={t('match.locked')}
         size="small"
         color="default"
         variant="outlined"
-        aria-label="Predictions locked — match has started"
+        aria-label={t('match.lockedAria')}
       />
     )
   }
 
+  const remainingLabel = formatRemaining(remaining, t)
+
   return (
     <Chip
       icon={<AccessTimeIcon />}
-      label={`Locks in ${formatRemaining(remaining)}`}
+      label={t('match.locksIn', { remaining: remainingLabel })}
       size="small"
       color="secondary"
       variant="outlined"
-      aria-label={`Predictions lock in ${formatRemaining(remaining)}`}
+      aria-label={t('match.locksInAria', { remaining: remainingLabel })}
     />
   )
 }

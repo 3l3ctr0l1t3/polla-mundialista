@@ -12,8 +12,9 @@
  */
 import Box from '@mui/material/Box'
 import { Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import AppShell from '../components/AppShell'
-import { DEFAULT_NAV_ITEMS, ADMIN_NAV_ITEM, MY_GROUPS_NAV_ITEM } from '../components/navItems'
+import { defaultNavItems, adminNavItem, myGroupsNavItem } from '../components/navItems'
 import { LoadingState, ErrorState } from '../components/states'
 import { useGroup } from './useGroup'
 import MembershipGate from '../pages/MembershipGate'
@@ -25,6 +26,7 @@ import AdminPage from '../pages/AdminPage'
 
 export function GroupApp() {
   const { gid, group, isGroupMember, isGroupAdmin, loading, error } = useGroup()
+  const { t } = useTranslation()
   const location = useLocation()
   const navigate = useNavigate()
 
@@ -39,7 +41,7 @@ export function GroupApp() {
           p: 3,
         }}
       >
-        <LoadingState rows={1} label="Loading group" />
+        <LoadingState rows={1} label={t('states.loadingGroup')} />
       </Box>
     )
   }
@@ -48,8 +50,8 @@ export function GroupApp() {
     return (
       <Box sx={{ p: 3 }}>
         <ErrorState
-          title="Group unavailable"
-          description="This group could not be loaded. The invite link may be invalid."
+          title={t('membership.groupUnavailableTitle')}
+          description={t('membership.groupUnavailableDescription')}
         />
       </Box>
     )
@@ -65,13 +67,13 @@ export function GroupApp() {
   const selectedKey = segments[2] ?? 'fixtures'
 
   const navItems = [
-    ...DEFAULT_NAV_ITEMS,
-    ...(isGroupAdmin ? [ADMIN_NAV_ITEM] : []),
-    MY_GROUPS_NAV_ITEM,
+    ...defaultNavItems(t),
+    ...(isGroupAdmin ? [adminNavItem(t)] : []),
+    myGroupsNavItem(t),
   ]
 
   const handleNavigate = (key: string) => {
-    if (key === MY_GROUPS_NAV_ITEM.key) {
+    if (key === 'groups') {
       navigate('/')
       return
     }

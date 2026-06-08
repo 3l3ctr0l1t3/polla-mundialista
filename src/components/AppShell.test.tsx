@@ -2,8 +2,9 @@ import type { ReactNode } from 'react'
 import { render, screen } from '@testing-library/react'
 import { describe, it, expect, beforeAll, vi } from 'vitest'
 import { ThemeProvider } from '@mui/material/styles'
+import i18n from '../i18n'
 import { AppShell } from './AppShell'
-import { DEFAULT_NAV_ITEMS } from './navItems'
+import { defaultNavItems } from './navItems'
 import { theme } from '../theme/theme'
 
 // jsdom does not implement matchMedia, which `useMediaQuery` relies on.
@@ -51,7 +52,7 @@ describe('AppShell', () => {
 
   it('renders the default navigation destinations', () => {
     renderShell(<AppShell />)
-    for (const item of DEFAULT_NAV_ITEMS) {
+    for (const item of defaultNavItems(i18n.t)) {
       // Each label appears at least once (rail or bottom bar depending on width).
       expect(screen.getAllByText(item.label).length).toBeGreaterThan(0)
     }

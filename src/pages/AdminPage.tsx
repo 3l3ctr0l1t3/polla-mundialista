@@ -31,6 +31,7 @@ import HowToRegIcon from '@mui/icons-material/HowToReg'
 import PeopleIcon from '@mui/icons-material/People'
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutlineOutlined'
 import { deleteDoc, serverTimestamp, updateDoc } from 'firebase/firestore'
+import { useTranslation } from 'react-i18next'
 import { groupMemberDoc } from '../firebase/db'
 import { useAuth } from '../auth/useAuth'
 import { useGroup } from '../group/useGroup'
@@ -49,6 +50,7 @@ function PendingRow({
   busy: boolean
   onDecide: (uid: string, status: Extract<MemberStatus, 'approved' | 'rejected'>) => void
 }) {
+  const { t } = useTranslation()
   return (
     <Card variant="outlined" sx={{ borderRadius: 3 }}>
       <CardContent>
@@ -63,7 +65,7 @@ function PendingRow({
             </Avatar>
             <Box sx={{ minWidth: 0 }}>
               <Typography variant="subtitle1" noWrap>
-                {member.displayName || 'Unnamed'}
+                {member.displayName || t('common.unnamed')}
               </Typography>
               <Typography variant="body2" color="text.secondary" noWrap>
                 {member.email}
@@ -78,9 +80,9 @@ function PendingRow({
               startIcon={<CheckIcon />}
               disabled={busy}
               onClick={() => onDecide(member.uid, 'approved')}
-              aria-label={`Approve ${member.displayName || member.email}`}
+              aria-label={t('admin.approveAria', { name: member.displayName || member.email })}
             >
-              Approve
+              {t('admin.approve')}
             </Button>
             <Button
               variant="outlined"
@@ -88,9 +90,9 @@ function PendingRow({
               startIcon={<CloseIcon />}
               disabled={busy}
               onClick={() => onDecide(member.uid, 'rejected')}
-              aria-label={`Reject ${member.displayName || member.email}`}
+              aria-label={t('admin.rejectAria', { name: member.displayName || member.email })}
             >
-              Reject
+              {t('admin.reject')}
             </Button>
           </Stack>
         </Stack>
@@ -109,6 +111,7 @@ function MemberRow({
   busy: boolean
   onRemove: (member: Member) => void
 }) {
+  const { t } = useTranslation()
   return (
     <Card variant="outlined" sx={{ borderRadius: 3 }}>
       <CardContent>
@@ -123,7 +126,7 @@ function MemberRow({
             </Avatar>
             <Box sx={{ minWidth: 0 }}>
               <Typography variant="subtitle1" noWrap>
-                {member.displayName || 'Unnamed'}
+                {member.displayName || t('common.unnamed')}
               </Typography>
               <Typography variant="body2" color="text.secondary" noWrap>
                 {member.email}
@@ -138,9 +141,9 @@ function MemberRow({
               startIcon={<DeleteOutlineIcon />}
               disabled={busy}
               onClick={() => onRemove(member)}
-              aria-label={`Remove ${member.displayName || member.email}`}
+              aria-label={t('admin.removeAria', { name: member.displayName || member.email })}
             >
-              Remove
+              {t('admin.remove')}
             </Button>
           </Stack>
         </Stack>
@@ -150,6 +153,7 @@ function MemberRow({
 }
 
 export function AdminPage() {
+  const { t } = useTranslation()
   const { user } = useAuth()
   const { gid, group } = useGroup()
   const { members, loading, error } = usePendingMembers(gid)
@@ -176,7 +180,7 @@ export function AdminPage() {
         decidedAt: serverTimestamp(),
       })
     } catch {
-      setSnack('Could not save that decision. Please try again.')
+      setSnack(t('admin.decisionError'))
     } finally {
       setPendingUid(null)
     }
@@ -189,7 +193,7 @@ export function AdminPage() {
       await deleteDoc(groupMemberDoc(gid, toRemove.uid))
       setToRemove(null)
     } catch {
-      setSnack('Could not remove that member. Please try again.')
+      setSnack(t('admin.removeError'))
     } finally {
       setRemovingUid(null)
     }
@@ -200,19 +204,19 @@ export function AdminPage() {
       <Stack direction="row" spacing={1} sx={{ alignItems: 'center', mb: 2 }}>
         <HowToRegIcon aria-hidden color="primary" />
         <Typography variant="h5" component="h2">
-          Join requests
+          {t('admin.joinRequests')}
         </Typography>
       </Stack>
 
       {loading ? (
-        <LoadingState rows={3} label="Loading join requests" />
+        <LoadingState rows={3} label={t('admin.loadingRequests')} />
       ) : error ? (
-        <ErrorState title="Couldn't load requests" description={error.message} />
+        <ErrorState title={t('admin.requestsErrorTitle')} description={error.message} />
       ) : members.length === 0 ? (
         <EmptyState
           icon={<HowToRegIcon fontSize="inherit" />}
-          title="No pending requests"
-          description="When someone asks to join this group, they'll show up here for approval."
+          title={t('admin.noRequestsTitle')}
+          description={t('admin.noRequestsDescription')}
         />
       ) : (
         <Stack spacing={1.5}>
@@ -230,19 +234,19 @@ export function AdminPage() {
       <Stack direction="row" spacing={1} sx={{ alignItems: 'center', mt: 4, mb: 2 }}>
         <PeopleIcon aria-hidden color="primary" />
         <Typography variant="h5" component="h2">
-          Members
+          {t('admin.members')}
         </Typography>
       </Stack>
 
       {membersLoading ? (
-        <LoadingState rows={3} label="Loading members" />
+        <LoadingState rows={3} label={t('admin.loadingMembers')} />
       ) : membersError ? (
-        <ErrorState title="Couldn't load members" description={membersError.message} />
+        <ErrorState title={t('admin.membersErrorTitle')} description={membersError.message} />
       ) : approvedMembers.length === 0 ? (
         <EmptyState
           icon={<PeopleIcon fontSize="inherit" />}
-          title="No members yet."
-          description="Approved members show up here, where you can remove them from the group."
+          title={t('admin.noMembersTitle')}
+          description={t('admin.noMembersDescription')}
         />
       ) : (
         <Stack spacing={1.5}>
@@ -264,17 +268,18 @@ export function AdminPage() {
         onClose={() => (removingUid ? undefined : setToRemove(null))}
         aria-labelledby="remove-member-title"
       >
-        <DialogTitle id="remove-member-title">Remove member?</DialogTitle>
+        <DialogTitle id="remove-member-title">{t('admin.removeDialogTitle')}</DialogTitle>
         <DialogContent>
           <DialogContentText>
-            {`Remove ${toRemove?.displayName || toRemove?.email || 'this member'} from ${
-              group?.name || 'this group'
-            }? Their predictions are kept but they drop off the leaderboard.`}
+            {t('admin.removeConfirm', {
+              name: toRemove?.displayName || toRemove?.email || t('admin.thisMember'),
+              group: group?.name || t('admin.thisGroup'),
+            })}
           </DialogContentText>
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setToRemove(null)} disabled={removingUid !== null}>
-            Cancel
+            {t('common.cancel')}
           </Button>
           <Button
             variant="contained"
@@ -283,7 +288,7 @@ export function AdminPage() {
             disabled={removingUid !== null}
             onClick={handleConfirmRemove}
           >
-            Remove
+            {t('admin.remove')}
           </Button>
         </DialogActions>
       </Dialog>

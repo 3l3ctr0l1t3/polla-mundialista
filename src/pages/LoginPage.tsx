@@ -20,9 +20,12 @@ import Snackbar from '@mui/material/Snackbar'
 import Alert from '@mui/material/Alert'
 import GoogleIcon from '@mui/icons-material/Google'
 import SportsSoccerIcon from '@mui/icons-material/SportsSoccer'
+import { useTranslation } from 'react-i18next'
 import { signInWithGoogle } from '../firebase/auth'
+import { LanguageSwitcher } from '../components/LanguageSwitcher'
 
 export function LoginPage() {
+  const { t } = useTranslation()
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -35,9 +38,7 @@ export function LoginPage() {
     } catch (err) {
       const code = (err as { code?: string }).code
       setError(
-        code === 'auth/popup-closed-by-user'
-          ? 'Sign-in was cancelled.'
-          : 'Could not sign in. Please try again.',
+        code === 'auth/popup-closed-by-user' ? t('auth.signInCancelled') : t('auth.signInFailed'),
       )
     } finally {
       setBusy(false)
@@ -57,16 +58,20 @@ export function LoginPage() {
       <Card elevation={3} sx={{ width: '100%', maxWidth: 420, borderRadius: 4 }}>
         <CardContent sx={{ p: 4 }}>
           <Stack spacing={3} sx={{ alignItems: 'center', textAlign: 'center' }}>
+            <Box sx={{ alignSelf: 'flex-end' }}>
+              <LanguageSwitcher />
+            </Box>
+
             <Box aria-hidden sx={{ display: 'flex', color: 'primary.main', fontSize: 56 }}>
               <SportsSoccerIcon fontSize="inherit" />
             </Box>
 
             <Stack spacing={1}>
               <Typography variant="h5" component="h1">
-                Polla Mundialista
+                {t('common.appName')}
               </Typography>
               <Typography variant="body2" color="text.secondary">
-                Sign in to make your predictions and climb the leaderboard.
+                {t('auth.tagline')}
               </Typography>
             </Stack>
 
@@ -80,7 +85,7 @@ export function LoginPage() {
               fullWidth
               sx={{ borderRadius: 8, py: 1.25 }}
             >
-              Sign in with Google
+              {t('auth.signInWithGoogle')}
             </Button>
           </Stack>
         </CardContent>

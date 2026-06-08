@@ -14,6 +14,7 @@ import ListItem from '@mui/material/ListItem'
 import ListItemAvatar from '@mui/material/ListItemAvatar'
 import Stack from '@mui/material/Stack'
 import Typography from '@mui/material/Typography'
+import { useTranslation } from 'react-i18next'
 
 /**
  * The minimal shape this row renders. Both the ingestion `LeaderboardEntry` and the
@@ -49,6 +50,7 @@ export function LeaderboardRow({
   isTie = false,
   isCurrentUser = false,
 }: LeaderboardRowProps) {
+  const { t } = useTranslation()
   const rankLabel = isTie ? `T-${entry.rank}` : `${entry.rank}`
 
   return (
@@ -72,7 +74,11 @@ export function LeaderboardRow({
         <Typography
           component="span"
           variant="subtitle1"
-          aria-label={isTie ? `Tied rank ${entry.rank}` : `Rank ${entry.rank}`}
+          aria-label={
+            isTie
+              ? t('leaderboard.tiedRank', { rank: entry.rank })
+              : t('leaderboard.rank', { rank: entry.rank })
+          }
         >
           {rankLabel}
         </Typography>
@@ -89,16 +95,16 @@ export function LeaderboardRow({
           {entry.displayName}
           {isCurrentUser && (
             <Typography component="span" variant="caption" color="primary" sx={{ ml: 1 }}>
-              You
+              {t('common.you')}
             </Typography>
           )}
         </Typography>
         <Stack direction="row" spacing={2}>
           <Typography variant="caption" color="text.secondary">
-            Exact: {entry.exactCount}
+            {t('leaderboard.exact', { count: entry.exactCount })}
           </Typography>
           <Typography variant="caption" color="text.secondary">
-            Outcome: {entry.outcomeCount}
+            {t('leaderboard.outcome', { count: entry.outcomeCount })}
           </Typography>
         </Stack>
       </Box>
@@ -108,7 +114,7 @@ export function LeaderboardRow({
           {entry.totalPoints}
         </Typography>
         <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
-          pts
+          {t('leaderboard.pts')}
         </Typography>
       </Box>
     </ListItem>

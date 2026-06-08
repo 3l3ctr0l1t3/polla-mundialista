@@ -9,12 +9,14 @@
  * collection is empty and this page renders its Empty state. See `src/dev/sampleData.ts`
  * (used by tests only) for example fixtures.
  */
+import type { TFunction } from 'i18next'
 import Box from '@mui/material/Box'
 import Stack from '@mui/material/Stack'
 import Typography from '@mui/material/Typography'
 import Chip from '@mui/material/Chip'
 import UpdateIcon from '@mui/icons-material/Update'
 import EventBusyIcon from '@mui/icons-material/EventBusy'
+import { useTranslation } from 'react-i18next'
 import { useMatches } from '../hooks/useMatches'
 import { useMeta } from '../hooks/useMeta'
 import { groupMatchesByDay } from '../hooks/matchGrouping'
@@ -25,6 +27,7 @@ import type { MetaConfig } from '../shared/types'
 
 /** "updated N min ago" badge from `config/meta.lastIngestAt`; nothing if absent. */
 function FreshnessBadge({ meta }: { meta: MetaConfig | null }) {
+  const { t } = useTranslation()
   if (!meta?.lastIngestAt) return null
   const when = meta.lastIngestAt.toDate()
   return (
@@ -32,25 +35,26 @@ function FreshnessBadge({ meta }: { meta: MetaConfig | null }) {
       size="small"
       variant="outlined"
       icon={<UpdateIcon />}
-      label={`Updated ${relativeFromNow(when)}`}
+      label={t('fixtures.updated', { when: relativeFromNow(when, t) })}
       sx={{ alignSelf: 'flex-start' }}
     />
   )
 }
 
 /** Minimal relative formatter so we don't depend on dayjs' relativeTime plugin. */
-function relativeFromNow(date: Date): string {
+function relativeFromNow(date: Date, t: TFunction): string {
   const diffMs = Date.now() - date.getTime()
   const mins = Math.max(0, Math.round(diffMs / 60000))
-  if (mins < 1) return 'just now'
-  if (mins < 60) return `${mins} min ago`
+  if (mins < 1) return t('fixtures.justNow')
+  if (mins < 60) return t('fixtures.minAgo', { count: mins })
   const hours = Math.round(mins / 60)
-  if (hours < 24) return `${hours} hr ago`
+  if (hours < 24) return t('fixtures.hrAgo', { count: hours })
   const days = Math.round(hours / 24)
-  return `${days} day${days === 1 ? '' : 's'} ago`
+  return t('fixtures.dayAgo', { count: days })
 }
 
 export function FixturesPage() {
+  const { t } = useTranslation()
   const { matches, loading, error } = useMatches()
   const { meta } = useMeta()
   const { gid } = useGroup()
@@ -68,20 +72,20 @@ export function FixturesPage() {
         }}
       >
         <Typography variant="h5" component="h2">
-          Fixtures
+          {t('fixtures.title')}
         </Typography>
         <FreshnessBadge meta={meta} />
       </Stack>
 
       {loading ? (
-        <LoadingState rows={4} label="Loading fixtures" />
+        <LoadingState rows={4} label={t('fixtures.loading')} />
       ) : error ? (
-        <ErrorState title="Couldn't load fixtures" description={error.message} />
+        <ErrorState title={t('fixtures.errorTitle')} description={error.message} />
       ) : matches.length === 0 ? (
         <EmptyState
           icon={<EventBusyIcon fontSize="inherit" />}
-          title="No fixtures yet"
-          description="Match data hasn't been loaded yet. Check back once the schedule is published."
+          title={t('fixtures.emptyTitle')}
+          description={t('fixtures.emptyDescription')}
         />
       ) : (
         <Stack spacing={3}>

@@ -25,11 +25,13 @@ import HourglassTopIcon from '@mui/icons-material/HourglassTop'
 import DoNotDisturbIcon from '@mui/icons-material/DoNotDisturb'
 import { serverTimestamp, setDoc, updateDoc } from 'firebase/firestore'
 import { Link as RouterLink } from 'react-router-dom'
+import { Trans, useTranslation } from 'react-i18next'
 import { groupMemberDoc } from '../firebase/db'
 import { useAuth } from '../auth/useAuth'
 import { useGroup } from '../group/useGroup'
 
 export function MembershipGate() {
+  const { t } = useTranslation()
   const { user } = useAuth()
   const { gid, group, status } = useGroup()
   const [busy, setBusy] = useState(false)
@@ -37,7 +39,7 @@ export function MembershipGate() {
 
   if (!user) return null
 
-  const groupName = group?.name ?? 'this group'
+  const groupName = group?.name ?? t('membership.thisGroup')
 
   const handleRequestToJoin = async () => {
     setBusy(true)
@@ -55,7 +57,7 @@ export function MembershipGate() {
         decidedBy: null,
       })
     } catch {
-      setError('Could not send your request. Please try again.')
+      setError(t('membership.requestError'))
     } finally {
       setBusy(false)
     }
@@ -71,7 +73,7 @@ export function MembershipGate() {
         decidedBy: null,
       })
     } catch {
-      setError('Could not resubmit your request. Please try again.')
+      setError(t('membership.reRequestError'))
     } finally {
       setBusy(false)
     }
@@ -82,25 +84,29 @@ export function MembershipGate() {
       ? {
           icon: <HourglassTopIcon fontSize="inherit" />,
           color: 'info.main' as const,
-          heading: 'Request pending',
-          body: `Your request to join ${groupName} is awaiting approval from its admin.`,
+          heading: t('membership.pendingTitle'),
+          body: t('membership.pendingBody', { name: groupName }),
           primary: null,
         }
       : status === 'rejected'
         ? {
             icon: <DoNotDisturbIcon fontSize="inherit" />,
             color: 'error.main' as const,
-            heading: 'Not approved',
-            body: `Your request to join ${groupName} wasn't approved. You can ask again.`,
-            primary: { label: 'Request again', onClick: handleReRequest, icon: <GroupAddIcon /> },
+            heading: t('membership.rejectedTitle'),
+            body: t('membership.rejectedBody', { name: groupName }),
+            primary: {
+              label: t('membership.requestAgain'),
+              onClick: handleReRequest,
+              icon: <GroupAddIcon />,
+            },
           }
         : {
             icon: <GroupAddIcon fontSize="inherit" />,
             color: 'primary.main' as const,
-            heading: `Join ${groupName}`,
-            body: "You're not a member of this group yet. Send a request and its admin will let you in.",
+            heading: t('membership.joinTitle', { name: groupName }),
+            body: t('membership.gateJoinBody'),
             primary: {
-              label: 'Request to join',
+              label: t('membership.requestToJoin'),
               onClick: handleRequestToJoin,
               icon: <GroupAddIcon />,
             },
@@ -134,7 +140,9 @@ export function MembershipGate() {
             </Stack>
 
             <Typography variant="body2" color="text.secondary">
-              Signed in as <strong>{user.email}</strong>
+              <Trans i18nKey="membership.signedInAs" values={{ email: user.email }}>
+                Signed in as <strong>{user.email}</strong>
+              </Trans>
             </Typography>
 
             <Stack spacing={2} sx={{ width: '100%' }}>

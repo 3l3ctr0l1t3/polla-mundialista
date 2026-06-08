@@ -26,6 +26,7 @@ import Stack from '@mui/material/Stack'
 import Typography from '@mui/material/Typography'
 import CloseIcon from '@mui/icons-material/Close'
 import LockClockIcon from '@mui/icons-material/LockClock'
+import { useTranslation } from 'react-i18next'
 import { useMatchPredictions } from '../hooks/useMatchPredictions'
 import { useGroupRoster } from '../hooks/useGroupRoster'
 import { LoadingState, ErrorState, EmptyState } from './states'
@@ -43,8 +44,8 @@ export interface MatchPredictionsDialogProps {
 
 /** First letter of a name for the avatar fallback. */
 function initial(name: string): string {
-  const t = name.trim()
-  return t ? t[0].toUpperCase() : '?'
+  const trimmed = name.trim()
+  return trimmed ? trimmed[0].toUpperCase() : '?'
 }
 
 export function MatchPredictionsDialog({
@@ -54,6 +55,7 @@ export function MatchPredictionsDialog({
   open,
   onClose,
 }: MatchPredictionsDialogProps) {
+  const { t } = useTranslation()
   const { user } = useAuth()
   const { roster } = useGroupRoster(gid)
   // Only query once kicked off AND the dialog is open (avoids a needless listener).
@@ -67,12 +69,15 @@ export function MatchPredictionsDialog({
   return (
     <Dialog open={open} onClose={onClose} fullWidth maxWidth="xs" aria-labelledby={titleId}>
       <DialogTitle id={titleId} sx={{ pr: 6 }}>
-        Predictions
+        {t('predictions.dialogTitle')}
         <Typography variant="body2" color="text.secondary">
-          {match.homeTeam.shortName} vs {match.awayTeam.shortName}
+          {t('predictions.matchVs', {
+            home: match.homeTeam.shortName,
+            away: match.awayTeam.shortName,
+          })}
         </Typography>
         <IconButton
-          aria-label="Close"
+          aria-label={t('states.close')}
           onClick={onClose}
           sx={{ position: 'absolute', right: 8, top: 8 }}
         >
@@ -85,29 +90,29 @@ export function MatchPredictionsDialog({
           <Stack spacing={1.5} sx={{ py: 3, textAlign: 'center', alignItems: 'center' }}>
             <LockClockIcon fontSize="large" color="disabled" />
             <Typography variant="body1" color="text.secondary">
-              Predictions reveal at kickoff
+              {t('predictions.revealAtKickoff')}
             </Typography>
             <Typography variant="body2" color="text.secondary">
-              Everyone&apos;s picks become visible once this match starts.
+              {t('predictions.revealDescription')}
             </Typography>
           </Stack>
         ) : loading ? (
-          <LoadingState rows={3} label="Loading predictions" />
+          <LoadingState rows={3} label={t('predictions.loadingList')} />
         ) : error ? (
           <ErrorState
-            title="Couldn’t load predictions"
-            description="They’ll appear once the connection recovers."
+            title={t('predictions.listErrorTitle')}
+            description={t('predictions.listErrorDescription')}
           />
         ) : predictions.length === 0 ? (
           <EmptyState
-            title="No predictions"
-            description="No one in the group predicted this match."
+            title={t('predictions.noneTitle')}
+            description={t('predictions.noneDescription')}
           />
         ) : (
-          <List disablePadding aria-label="Member predictions">
+          <List disablePadding aria-label={t('predictions.memberPredictions')}>
             {predictions.map((p) => {
               const member = nameFor(p.uid)
-              const displayName = member?.displayName ?? 'Unknown member'
+              const displayName = member?.displayName ?? t('predictions.unknownMember')
               const isCurrentUser = user?.uid === p.uid
               return (
                 <ListItem
@@ -139,7 +144,7 @@ export function MatchPredictionsDialog({
                           color="primary"
                           sx={{ ml: 1 }}
                         >
-                          You
+                          {t('common.you')}
                         </Typography>
                       )}
                     </Typography>
@@ -147,7 +152,10 @@ export function MatchPredictionsDialog({
                   <Typography
                     variant="h6"
                     sx={{ fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}
-                    aria-label={`Predicted ${p.homeGoals} to ${p.awayGoals}`}
+                    aria-label={t('predictions.predicted', {
+                      home: p.homeGoals,
+                      away: p.awayGoals,
+                    })}
                   >
                     {p.homeGoals} – {p.awayGoals}
                   </Typography>
@@ -155,8 +163,8 @@ export function MatchPredictionsDialog({
                     <Chip
                       size="small"
                       variant="outlined"
-                      label={`${p.points} pts`}
-                      aria-label={`Earned ${p.points} points`}
+                      label={t('predictions.pts', { count: p.points })}
+                      aria-label={t('predictions.earnedPoints', { count: p.points })}
                     />
                   )}
                 </ListItem>

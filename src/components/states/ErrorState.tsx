@@ -2,6 +2,7 @@ import Box from '@mui/material/Box'
 import Typography from '@mui/material/Typography'
 import Button from '@mui/material/Button'
 import ErrorIcon from '@mui/icons-material/Error'
+import { useTranslation } from 'react-i18next'
 
 export interface ErrorStateProps {
   /** Headline shown to the user. */
@@ -18,12 +19,11 @@ export interface ErrorStateProps {
  * Reusable error placeholder. Uses the theme `error` palette so it adapts to
  * light/dark and any future rebrand.
  */
-export function ErrorState({
-  title = 'Something went wrong',
-  description = 'Please try again in a moment.',
-  onRetry,
-  retryLabel = 'Retry',
-}: ErrorStateProps) {
+export function ErrorState({ title, description, onRetry, retryLabel }: ErrorStateProps) {
+  const { t } = useTranslation()
+  const resolvedTitle = title ?? t('errors.genericTitle')
+  const resolvedDescription = description ?? t('errors.genericDescription')
+  const resolvedRetryLabel = retryLabel ?? t('errors.retry')
   return (
     <Box
       role="alert"
@@ -40,16 +40,16 @@ export function ErrorState({
     >
       <ErrorIcon aria-hidden sx={{ fontSize: 48, color: 'error.main' }} />
       <Typography variant="h6" component="p" color="text.primary">
-        {title}
+        {resolvedTitle}
       </Typography>
-      {description && (
+      {resolvedDescription && (
         <Typography variant="body2" color="text.secondary" sx={{ maxWidth: 360 }}>
-          {description}
+          {resolvedDescription}
         </Typography>
       )}
       {onRetry && (
         <Button variant="outlined" color="primary" onClick={onRetry} sx={{ mt: 1 }}>
-          {retryLabel}
+          {resolvedRetryLabel}
         </Button>
       )}
     </Box>

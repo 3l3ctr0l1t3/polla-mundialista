@@ -27,6 +27,7 @@ import DoNotDisturbIcon from '@mui/icons-material/DoNotDisturb'
 import LoginIcon from '@mui/icons-material/Login'
 import { onSnapshot, serverTimestamp, setDoc, updateDoc } from 'firebase/firestore'
 import { Link as RouterLink, useNavigate, useParams } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { groupDoc, groupMemberDoc } from '../firebase/db'
 import { useAuth } from '../auth/useAuth'
 import { LoadingState } from '../components/states'
@@ -34,6 +35,7 @@ import type { Group, MemberStatus } from '../shared/types'
 
 export function JoinGroupPage() {
   const { gid = '' } = useParams<{ gid: string }>()
+  const { t } = useTranslation()
   const { user } = useAuth()
   const navigate = useNavigate()
 
@@ -96,7 +98,7 @@ export function JoinGroupPage() {
         decidedBy: null,
       })
     } catch {
-      setError('Could not send your request. Please try again.')
+      setError(t('membership.requestError'))
     } finally {
       setBusy(false)
     }
@@ -113,7 +115,7 @@ export function JoinGroupPage() {
         decidedBy: null,
       })
     } catch {
-      setError('Could not resubmit your request. Please try again.')
+      setError(t('membership.reRequestError'))
     } finally {
       setBusy(false)
     }
@@ -130,7 +132,7 @@ export function JoinGroupPage() {
           p: 3,
         }}
       >
-        <LoadingState rows={1} label="Loading group" />
+        <LoadingState rows={1} label={t('states.loadingGroup')} />
       </Box>
     )
   }
@@ -142,18 +144,18 @@ export function JoinGroupPage() {
     ? {
         icon: <DoNotDisturbIcon fontSize="inherit" />,
         color: 'error.main' as const,
-        heading: 'Group not found',
-        body: 'This invite link is invalid or the group no longer exists.',
+        heading: t('membership.notFoundTitle'),
+        body: t('membership.notFoundBody'),
         primary: null,
       }
     : approved
       ? {
           icon: <LoginIcon fontSize="inherit" />,
           color: 'primary.main' as const,
-          heading: "You're in",
-          body: `You're a member of ${group.name}.`,
+          heading: t('membership.youreInTitle'),
+          body: t('membership.youreInBody', { name: group.name }),
           primary: {
-            label: `Open ${group.name}`,
+            label: t('membership.openGroup', { name: group.name }),
             onClick: () => navigate(`/g/${gid}/fixtures`),
             icon: <LoginIcon />,
           },
@@ -162,24 +164,32 @@ export function JoinGroupPage() {
         ? {
             icon: <HourglassTopIcon fontSize="inherit" />,
             color: 'info.main' as const,
-            heading: 'Request pending',
-            body: `Your request to join ${group.name} is awaiting approval from its admin.`,
+            heading: t('membership.pendingTitle'),
+            body: t('membership.pendingBody', { name: group.name }),
             primary: null,
           }
         : status === 'rejected'
           ? {
               icon: <DoNotDisturbIcon fontSize="inherit" />,
               color: 'error.main' as const,
-              heading: 'Not approved',
-              body: `Your request to join ${group.name} wasn't approved. You can ask again.`,
-              primary: { label: 'Request again', onClick: handleReRequest, icon: <GroupAddIcon /> },
+              heading: t('membership.rejectedTitle'),
+              body: t('membership.rejectedBody', { name: group.name }),
+              primary: {
+                label: t('membership.requestAgain'),
+                onClick: handleReRequest,
+                icon: <GroupAddIcon />,
+              },
             }
           : {
               icon: <GroupAddIcon fontSize="inherit" />,
               color: 'primary.main' as const,
-              heading: `Join ${group.name}`,
-              body: 'Send a request and the group admin will let you in.',
-              primary: { label: 'Request to join', onClick: handleRequest, icon: <GroupAddIcon /> },
+              heading: t('membership.joinTitle', { name: group.name }),
+              body: t('membership.linkJoinBody'),
+              primary: {
+                label: t('membership.requestToJoin'),
+                onClick: handleRequest,
+                icon: <GroupAddIcon />,
+              },
             }
 
   return (
@@ -227,7 +237,7 @@ export function JoinGroupPage() {
                 </Button>
               )}
               <Button variant="outlined" component={RouterLink} to="/" disabled={busy} fullWidth>
-                My Groups
+                {t('common.myGroups')}
               </Button>
             </Stack>
           </Stack>

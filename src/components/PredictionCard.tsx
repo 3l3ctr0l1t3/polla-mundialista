@@ -16,9 +16,12 @@ import CardContent from '@mui/material/CardContent'
 import Divider from '@mui/material/Divider'
 import Box from '@mui/material/Box'
 import Typography from '@mui/material/Typography'
+import { useTranslation } from 'react-i18next'
+import type { TFunction } from 'i18next'
 import type { Match, Prediction } from '../shared/types'
 import { isTbdTeam } from '../hooks/matchGrouping'
-import { MatchTeams, TBD_LABEL } from './MatchTeams'
+import { MatchTeams } from './MatchTeams'
+import { useTbdLabel } from './useTbdLabel'
 import { CountdownToKickoff } from './CountdownToKickoff'
 import { PredictionInput } from './PredictionInput'
 
@@ -33,33 +36,38 @@ export interface PredictionCardProps {
 }
 
 /** Human label for a knockout stage when no group letter is present. */
-function stageLabel(match: Match): string {
+function stageLabel(match: Match, t: TFunction): string {
   switch (match.stage) {
     case 'LAST_32':
-      return 'Round of 32'
+      return t('match.stageRoundOf32')
     case 'LAST_16':
-      return 'Round of 16'
+      return t('match.stageRoundOf16')
     case 'QUARTER_FINALS':
-      return 'Quarter-finals'
+      return t('match.stageQuarterFinals')
     case 'SEMI_FINALS':
-      return 'Semi-finals'
+      return t('match.stageSemiFinals')
     case 'THIRD_PLACE':
-      return 'Third place'
+      return t('match.stageThirdPlace')
     case 'FINAL':
-      return 'Final'
+      return t('match.stageFinal')
     case 'GROUP_STAGE':
     default:
-      return 'Group stage'
+      return t('match.stageGroup')
   }
 }
 
 export function PredictionCard({ gid, match, existing, now }: PredictionCardProps) {
+  const { t } = useTranslation()
+  const tbdLabel = useTbdLabel()
   const { homeTeam, awayTeam, kickoff } = match
   const kickoffLocal = dayjs(kickoff.toDate())
 
   return (
     <Card
-      aria-label={`${isTbdTeam(homeTeam) ? TBD_LABEL : homeTeam.name} versus ${isTbdTeam(awayTeam) ? TBD_LABEL : awayTeam.name}`}
+      aria-label={t('match.versus', {
+        home: isTbdTeam(homeTeam) ? tbdLabel : homeTeam.name,
+        away: isTbdTeam(awayTeam) ? tbdLabel : awayTeam.name,
+      })}
     >
       <CardContent sx={{ py: 1.5, '&:last-child': { pb: 2 } }}>
         <MatchTeams
@@ -70,12 +78,17 @@ export function PredictionCard({ gid, match, existing, now }: PredictionCardProp
               variant="body2"
               color="text.secondary"
               sx={{ whiteSpace: 'nowrap' }}
-              aria-label={`Kickoff ${kickoffLocal.format('MMM D, HH:mm')}`}
+              aria-label={t('match.kickoff', { when: kickoffLocal.format('MMM D, HH:mm') })}
             >
               {kickoffLocal.format('HH:mm')}
             </Typography>
           }
-          caption={`${match.group ? `Group ${match.group}` : stageLabel(match)} · ${kickoffLocal.format('MMM D')}`}
+          caption={t('match.captionWithDate', {
+            stage: match.group
+              ? t('match.groupLabel', { letter: match.group })
+              : stageLabel(match, t),
+            date: kickoffLocal.format('MMM D'),
+          })}
           trailing={<CountdownToKickoff kickoffMs={kickoff.toMillis()} now={now} />}
         />
 

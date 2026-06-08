@@ -30,6 +30,7 @@ import HourglassTopIcon from '@mui/icons-material/HourglassTop'
 import LogoutIcon from '@mui/icons-material/Logout'
 import ShieldIcon from '@mui/icons-material/Shield'
 import { Link as RouterLink, useNavigate } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { signOutUser } from '../firebase/auth'
 import { useAuth } from '../auth/useAuth'
 import { useMyGroups, type JoinedGroup } from '../hooks/useMyGroups'
@@ -68,6 +69,7 @@ function GroupCard({ group, badge }: { group: Group; badge?: string }) {
 }
 
 function PendingCard({ entry }: { entry: JoinedGroup }) {
+  const { t } = useTranslation()
   return (
     <Card variant="outlined" sx={{ borderRadius: 3, opacity: 0.85 }}>
       <CardContent>
@@ -83,16 +85,16 @@ function PendingCard({ entry }: { entry: JoinedGroup }) {
               {entry.group.name}
             </Typography>
             <Typography variant="body2" color="text.secondary">
-              Awaiting approval
+              {t('groups.awaitingApproval')}
             </Typography>
           </Box>
           <Button
             size="small"
             component={RouterLink}
             to={`/join/${entry.group.groupId}`}
-            aria-label={`View join status for ${entry.group.name}`}
+            aria-label={t('groups.viewJoinStatus', { name: entry.group.name })}
           >
-            View
+            {t('common.view')}
           </Button>
         </Stack>
       </CardContent>
@@ -101,6 +103,7 @@ function PendingCard({ entry }: { entry: JoinedGroup }) {
 }
 
 export function MyGroupsPage() {
+  const { t } = useTranslation()
   const { owned, approved, pending, loading, error } = useMyGroups()
   const { isSuperAdmin } = useAuth()
   const navigate = useNavigate()
@@ -126,7 +129,7 @@ export function MyGroupsPage() {
         <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
           <GroupsIcon aria-hidden color="primary" />
           <Typography variant="h5" component="h1">
-            My Groups
+            {t('groups.title')}
           </Typography>
         </Stack>
         <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
@@ -138,7 +141,7 @@ export function MyGroupsPage() {
               component={RouterLink}
               to="/superadmin"
             >
-              Superadmin
+              {t('groups.superadmin')}
             </Button>
           )}
           <Button
@@ -147,57 +150,57 @@ export function MyGroupsPage() {
             startIcon={<LogoutIcon />}
             onClick={() => void signOutUser()}
           >
-            Sign out
+            {t('common.signOut')}
           </Button>
         </Stack>
       </Stack>
 
       <Stack direction="row" spacing={1.5} sx={{ mb: 3, flexWrap: 'wrap', gap: 1 }}>
         <Button variant="contained" startIcon={<AddIcon />} component={RouterLink} to="/groups/new">
-          Create group
+          {t('groups.createGroup')}
         </Button>
         <Button variant="outlined" startIcon={<LinkIcon />} onClick={() => setJoinOpen(true)}>
-          Join via link
+          {t('groups.joinViaLink')}
         </Button>
       </Stack>
 
       {loading ? (
-        <LoadingState rows={3} label="Loading your groups" />
+        <LoadingState rows={3} label={t('groups.loading')} />
       ) : error ? (
-        <ErrorState title="Couldn't load your groups" description={error.message} />
+        <ErrorState title={t('groups.errorTitle')} description={error.message} />
       ) : !hasAny ? (
         <EmptyState
           icon={<GroupsIcon fontSize="inherit" />}
-          title="No groups yet"
-          description="Create your own pool or join a friend's with their invite link."
+          title={t('groups.emptyTitle')}
+          description={t('groups.emptyDescription')}
         />
       ) : (
         <Stack spacing={3}>
           {owned.length > 0 && (
-            <Box component="section" aria-label="Groups you own">
+            <Box component="section" aria-label={t('groups.ownedSection')}>
               <Typography
                 variant="overline"
                 color="text.secondary"
                 sx={{ display: 'block', mb: 1 }}
               >
-                Owned
+                {t('groups.ownedLabel')}
               </Typography>
               <Stack spacing={1.5}>
                 {owned.map((g) => (
-                  <GroupCard key={g.groupId} group={g} badge="Owner" />
+                  <GroupCard key={g.groupId} group={g} badge={t('groups.ownerBadge')} />
                 ))}
               </Stack>
             </Box>
           )}
 
           {approved.length > 0 && (
-            <Box component="section" aria-label="Groups you've joined">
+            <Box component="section" aria-label={t('groups.joinedSection')}>
               <Typography
                 variant="overline"
                 color="text.secondary"
                 sx={{ display: 'block', mb: 1 }}
               >
-                Joined
+                {t('groups.joinedLabel')}
               </Typography>
               <Stack spacing={1.5}>
                 {approved.map((j) => (
@@ -208,13 +211,13 @@ export function MyGroupsPage() {
           )}
 
           {pending.length > 0 && (
-            <Box component="section" aria-label="Pending requests">
+            <Box component="section" aria-label={t('groups.pendingSection')}>
               <Typography
                 variant="overline"
                 color="text.secondary"
                 sx={{ display: 'block', mb: 1 }}
               >
-                Pending requests
+                {t('groups.pendingSection')}
               </Typography>
               <Stack spacing={1.5}>
                 {pending.map((j) => (
@@ -227,13 +230,13 @@ export function MyGroupsPage() {
       )}
 
       <Dialog open={joinOpen} onClose={() => setJoinOpen(false)} fullWidth maxWidth="xs">
-        <DialogTitle>Join via link</DialogTitle>
+        <DialogTitle>{t('groups.joinDialogTitle')}</DialogTitle>
         <DialogContent>
           <TextField
             autoFocus
             fullWidth
             margin="dense"
-            label="Invite link or group id"
+            label={t('groups.inviteOrId')}
             value={joinInput}
             onChange={(e) => setJoinInput(e.target.value)}
             onKeyDown={(e) => {
@@ -242,9 +245,9 @@ export function MyGroupsPage() {
           />
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setJoinOpen(false)}>Cancel</Button>
+          <Button onClick={() => setJoinOpen(false)}>{t('common.cancel')}</Button>
           <Button variant="contained" onClick={handleJoin} disabled={!parseGid(joinInput)}>
-            Continue
+            {t('common.continue')}
           </Button>
         </DialogActions>
       </Dialog>

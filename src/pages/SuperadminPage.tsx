@@ -13,6 +13,7 @@
 import { useEffect, useState } from 'react'
 import { onSnapshot } from 'firebase/firestore'
 import { Navigate, Link as RouterLink } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import Box from '@mui/material/Box'
 import Stack from '@mui/material/Stack'
 import Typography from '@mui/material/Typography'
@@ -67,6 +68,7 @@ function initial(name: string): string {
  * attach when the parent accordion is expanded (this subtree is unmounted when collapsed).
  */
 function GroupParticipants({ group }: { group: Group }) {
+  const { t } = useTranslation()
   const [members, setMembers] = useState<Member[]>([])
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([])
   const [loading, setLoading] = useState(true)
@@ -111,17 +113,19 @@ function GroupParticipants({ group }: { group: Group }) {
   }, [group.groupId])
 
   if (loading) {
-    return <LoadingState rows={2} label={`Loading ${group.name} participants`} />
+    return (
+      <LoadingState rows={2} label={t('superadmin.loadingParticipants', { name: group.name })} />
+    )
   }
   if (error) {
-    return <ErrorState title="Couldn't load participants" description={error.message} />
+    return <ErrorState title={t('superadmin.participantsErrorTitle')} description={error.message} />
   }
 
   return (
     <Stack spacing={2}>
-      <Box component="section" aria-label="Participants">
+      <Box component="section" aria-label={t('superadmin.participants')}>
         <Typography variant="overline" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
-          Participants
+          {t('superadmin.participants')}
         </Typography>
         <Paper variant="outlined" sx={{ borderRadius: 2 }}>
           <List disablePadding>
@@ -134,10 +138,10 @@ function GroupParticipants({ group }: { group: Group }) {
               </ListItemAvatar>
               <ListItemText
                 primary={group.ownerName}
-                secondary="Owner"
+                secondary={t('superadmin.owner')}
                 slotProps={{ primary: { noWrap: true } }}
               />
-              <Chip size="small" color="primary" label="Owner" />
+              <Chip size="small" color="primary" label={t('superadmin.owner')} />
             </ListItem>
 
             {members.map((m) => (
@@ -153,7 +157,9 @@ function GroupParticipants({ group }: { group: Group }) {
                   slotProps={{ primary: { noWrap: true }, secondary: { noWrap: true } }}
                 />
                 <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
-                  {m.role === 'admin' && <Chip size="small" variant="outlined" label="Admin" />}
+                  {m.role === 'admin' && (
+                    <Chip size="small" variant="outlined" label={t('superadmin.admin')} />
+                  )}
                   <Chip size="small" color={statusColor(m.status)} label={m.status} />
                 </Stack>
               </ListItem>
@@ -162,22 +168,25 @@ function GroupParticipants({ group }: { group: Group }) {
         </Paper>
         {members.length === 0 && (
           <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-            No joiners yet — only the owner.
+            {t('superadmin.ownerOnly')}
           </Typography>
         )}
       </Box>
 
-      <Box component="section" aria-label="Leaderboard">
+      <Box component="section" aria-label={t('superadmin.leaderboard')}>
         <Typography variant="overline" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
-          Leaderboard
+          {t('superadmin.leaderboard')}
         </Typography>
         {leaderboard.length === 0 ? (
           <Typography variant="body2" color="text.secondary">
-            No graded points yet.
+            {t('superadmin.noGradedPoints')}
           </Typography>
         ) : (
           <Paper variant="outlined" sx={{ borderRadius: 2, overflow: 'hidden' }}>
-            <List disablePadding aria-label={`${group.name} leaderboard`}>
+            <List
+              disablePadding
+              aria-label={t('superadmin.groupLeaderboardAria', { name: group.name })}
+            >
               {leaderboard.map((entry) => (
                 <LeaderboardRow key={entry.uid} entry={entry} />
               ))}
@@ -238,6 +247,7 @@ function GroupAccordion({ group }: { group: Group }) {
 export function SuperadminPage() {
   const { isSuperAdmin } = useAuth()
   const { groups, loading, error } = useAllGroups()
+  const { t } = useTranslation()
 
   // Defense in depth: even if the route guard is bypassed, render nothing useful.
   if (!isSuperAdmin) {
@@ -253,32 +263,32 @@ export function SuperadminPage() {
         <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
           <ShieldIcon aria-hidden color="primary" />
           <Typography variant="h5" component="h1">
-            Superadmin
+            {t('superadmin.title')}
           </Typography>
         </Stack>
         <Button size="small" startIcon={<ArrowBackIcon />} component={RouterLink} to="/">
-          My groups
+          {t('superadmin.myGroups')}
         </Button>
       </Stack>
 
       <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-        Oversight of every group across the pool. Read-only.
+        {t('superadmin.subtitle')}
       </Typography>
 
       {loading ? (
-        <LoadingState rows={4} label="Loading all groups" />
+        <LoadingState rows={4} label={t('superadmin.loading')} />
       ) : error ? (
-        <ErrorState title="Couldn't load groups" description={error.message} />
+        <ErrorState title={t('superadmin.errorTitle')} description={error.message} />
       ) : groups.length === 0 ? (
         <EmptyState
           icon={<GroupsIcon fontSize="inherit" />}
-          title="No groups yet"
-          description="Groups created by anyone in the pool will appear here."
+          title={t('superadmin.emptyTitle')}
+          description={t('superadmin.emptyDescription')}
         />
       ) : (
         <Stack spacing={1.5}>
           <Typography variant="overline" color="text.secondary">
-            {groups.length} {groups.length === 1 ? 'group' : 'groups'}
+            {t('superadmin.groupCount', { count: groups.length })}
           </Typography>
           {groups.map((g) => (
             <GroupAccordion key={g.groupId} group={g} />

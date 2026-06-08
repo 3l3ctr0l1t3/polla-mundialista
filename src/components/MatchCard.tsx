@@ -19,11 +19,14 @@ import Typography from '@mui/material/Typography'
 import Chip from '@mui/material/Chip'
 import GroupsIcon from '@mui/icons-material/Groups'
 import type { ChipProps } from '@mui/material/Chip'
+import { useTranslation } from 'react-i18next'
+import type { TFunction } from 'i18next'
 import type { Match, MatchStatus } from '../shared/types'
 import { isTbdTeam } from '../hooks/matchGrouping'
 import { useServerTime } from '../hooks/useServerTime'
 import { MatchPredictionsDialog } from './MatchPredictionsDialog'
-import { MatchTeams, TBD_LABEL } from './MatchTeams'
+import { MatchTeams } from './MatchTeams'
+import { useTbdLabel } from './useTbdLabel'
 
 export interface MatchCardProps {
   match: Match
@@ -35,27 +38,34 @@ export interface MatchCardProps {
 }
 
 /** Status -> { label, MUI chip color }. Color comes from the theme palette. */
-function statusChip(status: MatchStatus): { label: string; color: ChipProps['color'] } {
+function statusChip(
+  status: MatchStatus,
+  t: TFunction,
+): { label: string; color: ChipProps['color'] } {
   switch (status) {
     case 'IN_PLAY':
     case 'PAUSED':
-      return { label: 'Live', color: 'error' }
+      return { label: t('match.statusLive'), color: 'error' }
     case 'FINISHED':
-      return { label: 'Finished', color: 'success' }
+      return { label: t('match.statusFinished'), color: 'success' }
     case 'POSTPONED':
+      return { label: t('match.statusPostponed'), color: 'warning' }
     case 'SUSPENDED':
+      return { label: t('match.statusSuspended'), color: 'warning' }
     case 'CANCELLED':
-      return { label: status.charAt(0) + status.slice(1).toLowerCase(), color: 'warning' }
+      return { label: t('match.statusCancelled'), color: 'warning' }
     case 'SCHEDULED':
     case 'TIMED':
     default:
-      return { label: 'Scheduled', color: 'default' }
+      return { label: t('match.statusScheduled'), color: 'default' }
   }
 }
 
 export function MatchCard({ match, gid }: MatchCardProps) {
+  const { t } = useTranslation()
+  const tbdLabel = useTbdLabel()
   const { homeTeam, awayTeam, score, status, kickoff } = match
-  const chip = statusChip(status)
+  const chip = statusChip(status, t)
   const played = score.home !== null && score.away !== null
   const kickoffLocal = dayjs(kickoff.toDate())
   const { now } = useServerTime()
@@ -68,7 +78,7 @@ export function MatchCard({ match, gid }: MatchCardProps) {
       variant="h6"
       component="p"
       sx={{ fontWeight: 700, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}
-      aria-label={`Score ${score.home} to ${score.away}`}
+      aria-label={t('match.score', { home: score.home, away: score.away })}
     >
       {score.home} – {score.away}
     </Typography>
@@ -77,7 +87,7 @@ export function MatchCard({ match, gid }: MatchCardProps) {
       variant="body2"
       color="text.secondary"
       sx={{ whiteSpace: 'nowrap' }}
-      aria-label={`Kickoff ${kickoffLocal.format('MMM D, HH:mm')}`}
+      aria-label={t('match.kickoff', { when: kickoffLocal.format('MMM D, HH:mm') })}
     >
       {kickoffLocal.format('HH:mm')}
     </Typography>
@@ -85,14 +95,22 @@ export function MatchCard({ match, gid }: MatchCardProps) {
 
   return (
     <Card
-      aria-label={`${isTbdTeam(homeTeam) ? TBD_LABEL : homeTeam.name} versus ${isTbdTeam(awayTeam) ? TBD_LABEL : awayTeam.name}`}
+      aria-label={t('match.versus', {
+        home: isTbdTeam(homeTeam) ? tbdLabel : homeTeam.name,
+        away: isTbdTeam(awayTeam) ? tbdLabel : awayTeam.name,
+      })}
     >
       <CardContent sx={{ py: 1.5, '&:last-child': { pb: 1.5 } }}>
         <MatchTeams
           homeTeam={homeTeam}
           awayTeam={awayTeam}
           center={center}
-          caption={`${match.group ? `Group ${match.group}` : stageLabel(match)} · ${kickoffLocal.format('MMM D')}`}
+          caption={t('match.captionWithDate', {
+            stage: match.group
+              ? t('match.groupLabel', { letter: match.group })
+              : stageLabel(match, t),
+            date: kickoffLocal.format('MMM D'),
+          })}
           trailing={<Chip size="small" label={chip.label} color={chip.color} variant="outlined" />}
         />
       </CardContent>
@@ -105,7 +123,7 @@ export function MatchCard({ match, gid }: MatchCardProps) {
               startIcon={<GroupsIcon />}
               onClick={() => setPredictionsOpen(true)}
             >
-              Predictions
+              {t('predictions.openDialog')}
             </Button>
           </CardActions>
           <MatchPredictionsDialog
@@ -122,23 +140,23 @@ export function MatchCard({ match, gid }: MatchCardProps) {
 }
 
 /** Human label for a knockout stage when no group letter is present. */
-function stageLabel(match: Match): string {
+function stageLabel(match: Match, t: TFunction): string {
   switch (match.stage) {
     case 'LAST_32':
-      return 'Round of 32'
+      return t('match.stageRoundOf32')
     case 'LAST_16':
-      return 'Round of 16'
+      return t('match.stageRoundOf16')
     case 'QUARTER_FINALS':
-      return 'Quarter-finals'
+      return t('match.stageQuarterFinals')
     case 'SEMI_FINALS':
-      return 'Semi-finals'
+      return t('match.stageSemiFinals')
     case 'THIRD_PLACE':
-      return 'Third place'
+      return t('match.stageThirdPlace')
     case 'FINAL':
-      return 'Final'
+      return t('match.stageFinal')
     case 'GROUP_STAGE':
     default:
-      return 'Group stage'
+      return t('match.stageGroup')
   }
 }
 

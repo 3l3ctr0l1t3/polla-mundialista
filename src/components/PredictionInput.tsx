@@ -26,6 +26,8 @@ import Alert from '@mui/material/Alert'
 import Typography from '@mui/material/Typography'
 import AddIcon from '@mui/icons-material/Add'
 import RemoveIcon from '@mui/icons-material/Remove'
+import { useTranslation } from 'react-i18next'
+import type { TFunction } from 'i18next'
 import { setDoc, serverTimestamp } from 'firebase/firestore'
 import { groupPredictionDoc } from '../firebase/db'
 import { useAuth } from '../auth/useAuth'
@@ -52,9 +54,10 @@ interface StepperProps {
   value: number
   disabled: boolean
   onChange: (next: number) => void
+  t: TFunction
 }
 
-function GoalStepper({ label, value, disabled, onChange }: StepperProps) {
+function GoalStepper({ label, value, disabled, onChange, t }: StepperProps) {
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 0.5 }}>
       <Typography variant="caption" color="text.secondary" component="span">
@@ -64,7 +67,7 @@ function GoalStepper({ label, value, disabled, onChange }: StepperProps) {
         <IconButton
           size="small"
           disabled={disabled || value <= 0}
-          aria-label={`Decrease ${label} goals`}
+          aria-label={t('predictions.decreaseGoals', { team: label })}
           onClick={() => onChange(toGoals(value - 1))}
         >
           <RemoveIcon fontSize="small" />
@@ -80,7 +83,7 @@ function GoalStepper({ label, value, disabled, onChange }: StepperProps) {
               min: 0,
               step: 1,
               inputMode: 'numeric',
-              'aria-label': `${label} goals`,
+              'aria-label': t('predictions.teamGoals', { team: label }),
               style: { textAlign: 'center', width: '3ch' },
             },
           }}
@@ -101,7 +104,7 @@ function GoalStepper({ label, value, disabled, onChange }: StepperProps) {
         <IconButton
           size="small"
           disabled={disabled}
-          aria-label={`Increase ${label} goals`}
+          aria-label={t('predictions.increaseGoals', { team: label })}
           onClick={() => onChange(toGoals(value + 1))}
         >
           <AddIcon fontSize="small" />
@@ -112,6 +115,7 @@ function GoalStepper({ label, value, disabled, onChange }: StepperProps) {
 }
 
 export function PredictionInput({ gid, match, existing, now }: PredictionInputProps) {
+  const { t } = useTranslation()
   const { user } = useAuth()
   const [homeGoals, setHomeGoals] = useState<number>(existing?.homeGoals ?? 0)
   const [awayGoals, setAwayGoals] = useState<number>(existing?.awayGoals ?? 0)
@@ -147,17 +151,17 @@ export function PredictionInput({ gid, match, existing, now }: PredictionInputPr
         payload.createdAt = serverTimestamp() as unknown as Prediction['createdAt']
       }
       await setDoc(ref, payload, { merge: true })
-      setSnack({ message: 'Prediction saved', severity: 'success' })
+      setSnack({ message: t('predictions.saved'), severity: 'success' })
     } catch (err) {
       const code = (err as { code?: string }).code
       if (code === 'permission-denied') {
         setSnack({
-          message: 'This match already started — predictions are locked.',
+          message: t('predictions.lockedError'),
           severity: 'error',
         })
       } else {
         setSnack({
-          message: 'Could not save your prediction. Please try again.',
+          message: t('predictions.saveError'),
           severity: 'error',
         })
       }
@@ -177,19 +181,21 @@ export function PredictionInput({ gid, match, existing, now }: PredictionInputPr
         }}
       >
         <GoalStepper
-          label={match.homeTeam.shortName || match.homeTeam.tla || 'Home'}
+          label={match.homeTeam.shortName || match.homeTeam.tla || t('predictions.home')}
           value={homeGoals}
           disabled={disabled}
           onChange={setHomeGoals}
+          t={t}
         />
         <Typography variant="h6" component="span" sx={{ pb: 0.5 }} aria-hidden>
           –
         </Typography>
         <GoalStepper
-          label={match.awayTeam.shortName || match.awayTeam.tla || 'Away'}
+          label={match.awayTeam.shortName || match.awayTeam.tla || t('predictions.away')}
           value={awayGoals}
           disabled={disabled}
           onChange={setAwayGoals}
+          t={t}
         />
       </Box>
 
@@ -201,7 +207,7 @@ export function PredictionInput({ gid, match, existing, now }: PredictionInputPr
         onClick={handleSubmit}
         sx={{ alignSelf: 'center' }}
       >
-        {existing ? 'Update prediction' : 'Save prediction'}
+        {existing ? t('predictions.update') : t('predictions.save')}
       </Button>
 
       <Snackbar

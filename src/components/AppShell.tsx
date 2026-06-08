@@ -14,15 +14,17 @@ import Stack from '@mui/material/Stack'
 import useMediaQuery from '@mui/material/useMediaQuery'
 import { useTheme } from '@mui/material/styles'
 import SportsSoccerIcon from '@mui/icons-material/SportsSoccer'
+import { useTranslation } from 'react-i18next'
 import { layout } from '../theme/tokens'
-import { DEFAULT_NAV_ITEMS, type NavItem } from './navItems'
+import { defaultNavItems, type NavItem } from './navItems'
+import { LanguageSwitcher } from './LanguageSwitcher'
 
 export interface AppShellProps {
   /** Page content. */
   children?: ReactNode
   /** App title shown in the top app bar. */
   title?: string
-  /** Navigation destinations. Defaults to {@link DEFAULT_NAV_ITEMS}. */
+  /** Navigation destinations. Defaults to the in-group destinations. */
   navItems?: NavItem[]
   /** Currently selected nav item key (controlled). */
   selectedKey?: string
@@ -40,17 +42,15 @@ export interface AppShellProps {
  * Routing is intentionally NOT wired here — the parent connects `navItems`,
  * `selectedKey` and `onNavigate` to its router.
  */
-export function AppShell({
-  children,
-  title = 'Polla Mundialista',
-  navItems = DEFAULT_NAV_ITEMS,
-  selectedKey,
-  onNavigate,
-}: AppShellProps) {
+export function AppShell({ children, title, navItems, selectedKey, onNavigate }: AppShellProps) {
   const theme = useTheme()
+  const { t } = useTranslation()
   // Mobile-first: rail appears at the `sm` breakpoint and up.
   const isDesktop = useMediaQuery(theme.breakpoints.up('sm'))
   const navLabelId = useId()
+
+  const resolvedTitle = title ?? t('common.appName')
+  const items = navItems ?? defaultNavItems(t)
 
   const handleSelect = (key: string) => {
     onNavigate?.(key)
@@ -59,7 +59,7 @@ export function AppShell({
   const rail = (
     <Drawer
       variant="permanent"
-      aria-label="Primary navigation"
+      aria-label={t('appShell.primaryNav')}
       sx={{
         width: layout.navRailWidth,
         flexShrink: 0,
@@ -89,9 +89,9 @@ export function AppShell({
             clip: 'rect(0 0 0 0)',
           }}
         >
-          Primary
+          {t('appShell.primary')}
         </Box>
-        {navItems.map((item) => {
+        {items.map((item) => {
           const selected = item.key === selectedKey
           return (
             <ListItemButton
@@ -139,9 +139,9 @@ export function AppShell({
         showLabels
         value={selectedKey ?? false}
         onChange={(_, key: string) => handleSelect(key)}
-        aria-label="Primary navigation"
+        aria-label={t('appShell.primaryNav')}
       >
-        {navItems.map((item) => (
+        {items.map((item) => (
           <BottomNavigationAction
             key={item.key}
             value={item.key}
@@ -158,9 +158,10 @@ export function AppShell({
       <AppBar position="fixed">
         <Toolbar>
           <SportsSoccerIcon sx={{ mr: 1 }} aria-hidden />
-          <Typography variant="h6" component="h1" noWrap>
-            {title}
+          <Typography variant="h6" component="h1" noWrap sx={{ flexGrow: 1 }}>
+            {resolvedTitle}
           </Typography>
+          <LanguageSwitcher />
         </Toolbar>
       </AppBar>
 

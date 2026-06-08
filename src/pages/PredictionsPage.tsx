@@ -15,6 +15,7 @@ import Box from '@mui/material/Box'
 import Stack from '@mui/material/Stack'
 import Typography from '@mui/material/Typography'
 import EventBusyIcon from '@mui/icons-material/EventBusy'
+import { useTranslation } from 'react-i18next'
 import { onSnapshot, orderBy, query } from 'firebase/firestore'
 import { matchesCol } from '../firebase/db'
 import { LoadingState, EmptyState, ErrorState } from '../components/states'
@@ -50,6 +51,7 @@ function useUpcomingMatches() {
 }
 
 export function PredictionsPage() {
+  const { t } = useTranslation()
   const { gid } = useGroup()
   const { matches, error } = useUpcomingMatches()
   const { predictions, error: predError } = useGroupPredictions(gid)
@@ -58,18 +60,21 @@ export function PredictionsPage() {
   return (
     <Box>
       <Typography variant="h5" component="h1" sx={{ mb: 2 }}>
-        Your predictions
+        {t('predictions.title')}
       </Typography>
 
       {error || predError ? (
-        <ErrorState title="Couldn't load predictions" description={(error ?? predError)?.message} />
+        <ErrorState
+          title={t('predictions.errorTitle')}
+          description={(error ?? predError)?.message}
+        />
       ) : matches === null ? (
-        <LoadingState rows={4} label="Loading matches" />
+        <LoadingState rows={4} label={t('predictions.loading')} />
       ) : matches.length === 0 ? (
         <EmptyState
           icon={<EventBusyIcon fontSize="inherit" />}
-          title="No upcoming matches"
-          description="Predictions will open as soon as the fixtures are scheduled."
+          title={t('predictions.emptyTitle')}
+          description={t('predictions.emptyDescription')}
         />
       ) : (
         <Stack spacing={3}>

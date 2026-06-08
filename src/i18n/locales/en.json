@@ -106,6 +106,7 @@
     "emptyDescription": "Predictions will open as soon as the fixtures are scheduled.",
     "save": "Save prediction",
     "update": "Update prediction",
+    "vs": "vs",
     "home": "Home",
     "away": "Away",
     "increaseGoals": "Increase {{team}} goals",

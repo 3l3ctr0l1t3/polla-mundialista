@@ -106,6 +106,7 @@
     "emptyDescription": "Las predicciones se abrirán apenas se programen los partidos.",
     "save": "Guardar predicción",
     "update": "Actualizar predicción",
+    "vs": "vs",
     "home": "Local",
     "away": "Visitante",
     "increaseGoals": "Aumentar goles de {{team}}",

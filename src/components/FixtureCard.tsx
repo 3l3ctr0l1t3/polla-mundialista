@@ -94,9 +94,11 @@ function TeamName({
       noWrap
       title={name}
       sx={{
-        flex: 1,
+        flex: { sm: 1 },
         minWidth: 0,
-        textAlign: align,
+        maxWidth: '100%',
+        width: { xs: '100%', sm: 'auto' },
+        textAlign: { xs: 'center', sm: align },
         fontWeight: 600,
         color: tbd ? 'text.secondary' : 'text.primary',
       }}
@@ -252,8 +254,20 @@ export function FixtureCard({ gid, match, existing, now }: FixtureCardProps) {
             spacing={1}
             sx={{ width: '100%', alignItems: 'center', justifyContent: 'center' }}
           >
-            <TeamName team={homeTeam} tbdLabel={tbdLabel} align="right" />
-            <TeamFlag team={homeTeam} tbdLabel={tbdLabel} />
+            {/* Mobile: name on top of flag (column). Desktop: name · flag inline. */}
+            <Stack
+              direction={{ xs: 'column', sm: 'row' }}
+              spacing={{ xs: 0.5, sm: 1 }}
+              sx={{
+                flex: 1,
+                minWidth: 0,
+                alignItems: 'center',
+                justifyContent: { sm: 'flex-end' },
+              }}
+            >
+              <TeamName team={homeTeam} tbdLabel={tbdLabel} align="right" />
+              <TeamFlag team={homeTeam} tbdLabel={tbdLabel} />
+            </Stack>
 
             <Box sx={{ flexShrink: 0, px: 0.5 }}>
               {editable ? (
@@ -266,8 +280,11 @@ export function FixtureCard({ gid, match, existing, now }: FixtureCardProps) {
                     increaseLabel={t('predictions.increaseGoals', { team: homeLabel })}
                     decreaseLabel={t('predictions.decreaseGoals', { team: homeLabel })}
                   />
-                  <Typography aria-hidden sx={{ fontWeight: 700 }}>
-                    –
+                  <Typography
+                    variant="caption"
+                    sx={{ px: 0.25, color: 'text.secondary', fontStyle: 'italic' }}
+                  >
+                    {t('predictions.vs')}
                   </Typography>
                   <Stepper
                     value={awayGoals}
@@ -303,8 +320,19 @@ export function FixtureCard({ gid, match, existing, now }: FixtureCardProps) {
               )}
             </Box>
 
-            <TeamFlag team={awayTeam} tbdLabel={tbdLabel} />
-            <TeamName team={awayTeam} tbdLabel={tbdLabel} align="left" />
+            <Stack
+              direction={{ xs: 'column', sm: 'row-reverse' }}
+              spacing={{ xs: 0.5, sm: 1 }}
+              sx={{
+                flex: 1,
+                minWidth: 0,
+                alignItems: 'center',
+                justifyContent: { sm: 'flex-end' },
+              }}
+            >
+              <TeamName team={awayTeam} tbdLabel={tbdLabel} align="left" />
+              <TeamFlag team={awayTeam} tbdLabel={tbdLabel} />
+            </Stack>
           </Stack>
 
           {/* Upcoming: Save/Update (the "Locks in…" countdown lives top-right). */}

@@ -207,8 +207,9 @@ export function FixtureCard({ gid, match, existing, now }: FixtureCardProps) {
     save,
   } = useSavePrediction(gid, match, existing, now, mode, cutoffs)
 
-  // Strict mode: the lock is the whole group/knockout window, not this match's kickoff.
-  const strictLockHint =
+  // The lock-timing hint shown as a tooltip on the "Locks in" chip. Strict groups lock the
+  // whole group/knockout window (not this match's kickoff); lazy groups lock 10 min before.
+  const lockHint =
     mode === 'strict' && cutoffs
       ? match.stage === 'GROUP_STAGE'
         ? t('predictions.strictGroupLock', {
@@ -217,7 +218,7 @@ export function FixtureCard({ gid, match, existing, now }: FixtureCardProps) {
         : t('predictions.strictKnockoutLock', {
             time: dayjs(cutoffs.firstKnockoutKickoffMs).format('MMM D, HH:mm'),
           })
-      : null
+      : t('predictions.lazyLockHint')
 
   const [dialogOpen, setDialogOpen] = useState(false)
   // Server-corrected reveal gate; the Firestore rule is the real authority.
@@ -260,7 +261,11 @@ export function FixtureCard({ gid, match, existing, now }: FixtureCardProps) {
             <Typography variant="caption" color="text.secondary" noWrap sx={{ minWidth: 0 }}>
               {caption}
             </Typography>
-            {editable ? <CountdownToKickoff kickoffMs={lockMs} now={now} /> : statusChip}
+            {editable ? (
+              <CountdownToKickoff kickoffMs={lockMs} now={now} tooltip={lockHint} />
+            ) : (
+              statusChip
+            )}
           </Stack>
 
           {/* One line: home name · home flag · prediction/result · away flag · away name. */}
@@ -361,19 +366,6 @@ export function FixtureCard({ gid, match, existing, now }: FixtureCardProps) {
             >
               {existing ? t('predictions.update') : t('predictions.save')}
             </Button>
-          )}
-
-          {/* Mode hint: lazy labels the per-match countdown; strict explains the window lock. */}
-          {editable && (
-            <Typography
-              variant="caption"
-              color="text.secondary"
-              sx={{ textAlign: 'center', lineHeight: 1.3 }}
-            >
-              {mode === 'strict'
-                ? (strictLockHint ?? t('predictions.lazyLockHint'))
-                : t('predictions.lazyLockHint')}
-            </Typography>
           )}
 
           {/* Live/finished: surface the viewer's own prediction subtly. */}

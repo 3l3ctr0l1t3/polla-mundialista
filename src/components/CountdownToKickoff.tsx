@@ -9,6 +9,7 @@
  */
 import { useEffect, useState } from 'react'
 import Chip from '@mui/material/Chip'
+import Tooltip from '@mui/material/Tooltip'
 import AccessTimeIcon from '@mui/icons-material/AccessTime'
 import LockIcon from '@mui/icons-material/Lock'
 import { useTranslation } from 'react-i18next'
@@ -19,6 +20,12 @@ export interface CountdownToKickoffProps {
   kickoffMs: number
   /** Server-corrected current time in ms. */
   now: () => number
+  /**
+   * Optional hint explaining WHEN/why picks lock (lazy: 10-min buffer; strict: the
+   * group/knockout window). Rendered as a tooltip on the chip rather than a separate
+   * legend line. Omitted → no tooltip.
+   */
+  tooltip?: string
 }
 
 function formatRemaining(ms: number, t: TFunction): string {
@@ -34,7 +41,7 @@ function formatRemaining(ms: number, t: TFunction): string {
   return t('match.seconds', { seconds })
 }
 
-export function CountdownToKickoff({ kickoffMs, now }: CountdownToKickoffProps) {
+export function CountdownToKickoff({ kickoffMs, now, tooltip }: CountdownToKickoffProps) {
   const { t } = useTranslation()
   const [remaining, setRemaining] = useState(() => kickoffMs - now())
 
@@ -48,31 +55,29 @@ export function CountdownToKickoff({ kickoffMs, now }: CountdownToKickoffProps) 
 
   const locked = remaining <= 0
 
-  if (locked) {
-    return (
-      <Chip
-        icon={<LockIcon />}
-        label={t('match.locked')}
-        size="small"
-        color="default"
-        variant="outlined"
-        aria-label={t('match.lockedAria')}
-      />
-    )
-  }
-
-  const remainingLabel = formatRemaining(remaining, t)
-
-  return (
+  const chip = locked ? (
+    <Chip
+      icon={<LockIcon />}
+      label={t('match.locked')}
+      size="small"
+      color="default"
+      variant="outlined"
+      aria-label={t('match.lockedAria')}
+    />
+  ) : (
     <Chip
       icon={<AccessTimeIcon />}
-      label={t('match.locksIn', { remaining: remainingLabel })}
+      label={t('match.locksIn', { remaining: formatRemaining(remaining, t) })}
       size="small"
       color="secondary"
       variant="outlined"
-      aria-label={t('match.locksInAria', { remaining: remainingLabel })}
+      aria-label={t('match.locksInAria', { remaining: formatRemaining(remaining, t) })}
     />
   )
+
+  // The lock-timing hint rides along as a tooltip on the chip (Chip forwards its ref,
+  // so Tooltip needs no extra wrapper) instead of a separate legend line.
+  return tooltip ? <Tooltip title={tooltip}>{chip}</Tooltip> : chip
 }
 
 export default CountdownToKickoff

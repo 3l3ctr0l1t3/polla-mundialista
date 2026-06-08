@@ -184,7 +184,7 @@ describe('FixtureCard', () => {
     )
   })
 
-  it('shows the strict group-window lock hint when the group is strict', () => {
+  it('shows the strict group-window lock hint as a tooltip on the Locks-in chip', async () => {
     useGroupMock.mockReturnValue({ group: { mode: 'strict' } })
     useTournamentConfigMock.mockReturnValue({
       cutoffs: {
@@ -196,6 +196,9 @@ describe('FixtureCard', () => {
     // A group-stage match whose own kickoff is far in the future; the lock is the group window.
     const match = makeMatch({ kickoff: makeMatch().kickoff, stage: 'GROUP_STAGE' })
     renderCard(<FixtureCard gid="g1" match={match} now={beforeKickoff} />)
-    expect(screen.getByText(/group-stage picks lock/i)).toBeInTheDocument()
+    // The hint is no longer a standalone legend line — it rides on the countdown chip's tooltip.
+    expect(screen.queryByText(/group-stage picks lock/i)).not.toBeInTheDocument()
+    fireEvent.mouseOver(screen.getByText(/Locks in/i))
+    expect(await screen.findByRole('tooltip')).toHaveTextContent(/group-stage picks lock/i)
   })
 })

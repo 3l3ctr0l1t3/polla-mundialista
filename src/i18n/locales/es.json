@@ -130,7 +130,10 @@
     "pts": "{{count}} pts",
     "earnedPoints": "Ganó {{count}} puntos",
     "openDialog": "Predicciones",
-    "yourPrediction": "Tu predicción {{home}}–{{away}}"
+    "yourPrediction": "Tu predicción {{home}}–{{away}}",
+    "lazyLockHint": "Se cierra 10 min antes del inicio",
+    "strictGroupLock": "Estricto: las predicciones de fase de grupos se cierran {{time}}",
+    "strictKnockoutLock": "Estricto: las predicciones de eliminatorias se cierran {{time}}"
   },
   "match": {
     "tbd": "Por definir",
@@ -184,6 +187,12 @@
     "emptyDescription": "Las tablas de los grupos aparecen cuando se carguen los partidos del torneo."
   },
   "admin": {
+    "predictionMode": "Modo de predicción",
+    "predictionModeDescription": "Elige cuándo pueden enviar predicciones los miembros. Relajado: edita cada partido hasta 10 minutos antes de su inicio. Estricto: todas las predicciones de fase de grupos se cierran 10 minutos antes del primer partido, y todas las de eliminatorias 10 minutos antes del primer partido de eliminatorias.",
+    "modeLazy": "Relajado",
+    "modeStrict": "Estricto",
+    "modeFrozen": "El torneo ya comenzó — el modo de predicción ya no se puede cambiar.",
+    "modeError": "No se pudo cambiar el modo de predicción. Inténtalo de nuevo.",
     "joinRequests": "Solicitudes",
     "loadingRequests": "Cargando solicitudes",
     "requestsErrorTitle": "No se pudieron cargar las solicitudes",

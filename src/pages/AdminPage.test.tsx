@@ -25,8 +25,24 @@ vi.mock('../hooks/useApprovedMembers', () => ({
 }))
 
 // The current group from the group context (this admin is the group's owner ⇒ admin).
-vi.mock('../group/useGroup', () => ({
-  useGroup: () => ({ gid: 'g1', isGroupAdmin: true, group: { name: 'My Pool' } }),
+const useGroupMock = vi.fn(() => ({
+  gid: 'g1',
+  isGroupAdmin: true,
+  group: { name: 'My Pool', mode: 'lazy' } as { name: string; mode?: 'lazy' | 'strict' },
+}))
+vi.mock('../group/useGroup', () => ({ useGroup: () => useGroupMock() }))
+
+// Server clock + tournament cutoffs drive the mode "frozen" state.
+const nowMock = vi.fn(() => 0)
+vi.mock('../hooks/useServerTime', () => ({
+  useServerTime: () => ({ now: nowMock, offsetMs: 0, offsetKnown: true }),
+}))
+const useTournamentConfigMock = vi.fn<() => { cutoffs?: unknown; loading: boolean }>(() => ({
+  cutoffs: undefined,
+  loading: false,
+}))
+vi.mock('../hooks/useTournamentConfig', () => ({
+  useTournamentConfig: () => useTournamentConfigMock(),
 }))
 
 // Admin user from the auth context.
@@ -37,9 +53,10 @@ vi.mock('../auth/useAuth', () => ({
   }),
 }))
 
-// groupMemberDoc returns a recognizable ref keyed by gid + target uid.
+// groupMemberDoc / groupDoc return recognizable refs.
 vi.mock('../firebase/db', () => ({
   groupMemberDoc: (gid: string, uid: string) => ({ __ref: 'member', gid, uid }),
+  groupDoc: (gid: string) => ({ __ref: 'group', gid }),
 }))
 
 const updateDocMock = vi.fn<(...args: unknown[]) => Promise<void>>(() => Promise.resolve())
@@ -91,6 +108,13 @@ beforeEach(() => {
   updateDocMock.mockClear()
   deleteDocMock.mockClear()
   capturedGid = null
+  useGroupMock.mockReturnValue({
+    gid: 'g1',
+    isGroupAdmin: true,
+    group: { name: 'My Pool', mode: 'lazy' },
+  })
+  nowMock.mockReturnValue(0)
+  useTournamentConfigMock.mockReturnValue({ cutoffs: undefined, loading: false })
 })
 
 describe('AdminPage (per-group)', () => {
@@ -247,5 +271,69 @@ describe('AdminPage — remove member', () => {
 
     expect(screen.queryByRole('button', { name: /remove admin/i })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: /remove beto/i })).toBeInTheDocument()
+  })
+})
+
+describe('AdminPage — prediction mode', () => {
+  beforeEach(() => {
+    usePendingMembersMock.mockReturnValue({ members: [], loading: false, error: null })
+  })
+
+  // A future cup-first cutoff: freeze instant is 10 min before it → not yet frozen at now=0.
+  const futureCutoffs = {
+    cutoffs: {
+      firstCupMatchKickoffMs: 60 * 60 * 1000, // 1h in the future (vs now()=0)
+      firstKnockoutKickoffMs: 14 * 24 * 60 * 60 * 1000,
+    },
+    loading: false,
+  }
+
+  it('renders the toggle reflecting the current mode (lazy pressed)', () => {
+    renderPage(<AdminPage />)
+    const lazy = screen.getByRole('button', { name: 'Lazy' })
+    const strict = screen.getByRole('button', { name: 'Strict' })
+    expect(lazy).toHaveAttribute('aria-pressed', 'true')
+    expect(strict).toHaveAttribute('aria-pressed', 'false')
+  })
+
+  it('reflects strict when the group mode is strict', () => {
+    useGroupMock.mockReturnValue({
+      gid: 'g1',
+      isGroupAdmin: true,
+      group: { name: 'My Pool', mode: 'strict' },
+    })
+    renderPage(<AdminPage />)
+    expect(screen.getByRole('button', { name: 'Strict' })).toHaveAttribute('aria-pressed', 'true')
+  })
+
+  it('switching to strict writes mode via updateDoc(groupDoc)', async () => {
+    useTournamentConfigMock.mockReturnValue(futureCutoffs)
+    renderPage(<AdminPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Strict' }))
+
+    await waitFor(() => expect(updateDocMock).toHaveBeenCalledTimes(1))
+    expect(updateDocMock).toHaveBeenCalledWith({ __ref: 'group', gid: 'g1' }, { mode: 'strict' })
+  })
+
+  it('disables the toggle and shows the frozen caption once past the freeze instant', () => {
+    // Freeze instant = firstCupMatchKickoff − 10min. Set now() well past it.
+    useTournamentConfigMock.mockReturnValue({
+      cutoffs: { firstCupMatchKickoffMs: 1000, firstKnockoutKickoffMs: 2000 },
+      loading: false,
+    })
+    nowMock.mockReturnValue(10 * 60 * 1000) // far past (cutoff − 10min is negative)
+    renderPage(<AdminPage />)
+
+    expect(screen.getByRole('button', { name: 'Lazy' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Strict' })).toBeDisabled()
+    expect(screen.getByText(/the prediction mode can no longer be changed/i)).toBeInTheDocument()
+  })
+
+  it('treats a missing tournament config as not-frozen (toggle enabled)', () => {
+    useTournamentConfigMock.mockReturnValue({ cutoffs: undefined, loading: false })
+    renderPage(<AdminPage />)
+    expect(screen.getByRole('button', { name: 'Lazy' })).not.toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Strict' })).not.toBeDisabled()
   })
 })

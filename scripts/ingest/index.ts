@@ -29,6 +29,7 @@ import {
   type GradedPrediction,
 } from './buildLeaderboard.ts'
 import { scorePrediction, DEFAULT_SCORING, type ScoringConfig } from './scoring.ts'
+import { computeTournamentCutoffs } from './tournamentConfig.ts'
 import type { FdStandingsResponse } from './types.ts'
 
 const { Timestamp, FieldValue } = admin.firestore
@@ -333,6 +334,18 @@ async function main(): Promise<void> {
 
   const standingsGroups = await upsertStandings(db, standingsRes, matches)
   console.log(`[ingest] upserted ${standingsGroups} group standings.`)
+
+  // Global cutoffs the strict-mode prediction rules depend on (ticket 019).
+  // merge:true so a partially-known bracket never clobbers a previously-written
+  // knockout cutoff; admin-SDK-only writer keeps the two-writers rule intact.
+  const cutoffs = computeTournamentCutoffs(matches)
+  if (cutoffs.firstCupMatchKickoff || cutoffs.firstKnockoutKickoff) {
+    await db.doc('config/tournament').set(cutoffs, { merge: true })
+    console.log('[ingest] wrote config/tournament cutoffs', {
+      firstCupMatchKickoff: cutoffs.firstCupMatchKickoff?.toDate().toISOString() ?? null,
+      firstKnockoutKickoff: cutoffs.firstKnockoutKickoff?.toDate().toISOString() ?? null,
+    })
+  }
 
   // FINISHED full-time results, keyed by matchId — shared across all groups.
   const finished = new Map<string, { home: number; away: number }>()

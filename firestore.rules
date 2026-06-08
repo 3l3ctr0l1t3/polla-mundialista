@@ -9,10 +9,18 @@ rules_version = '2';
 //   - the browser writes ONLY the signed-in user's own prediction, in a group they
 //     belong to, and ONLY before kickoff.
 //
-// AUTHORITATIVE KICKOFF LOCK (constitution §4):
-//   prediction create/update is allowed only while `request.time < match.kickoff`,
-//   using SERVER time and the GLOBAL matches/{matchId} doc. The client clock is never
-//   trusted.
+// AUTHORITATIVE KICKOFF LOCK (constitution §4, AMENDED by ticket 019):
+//   prediction create/update is allowed only while `request.time < match.kickoff − 10min`,
+//   using SERVER time and the GLOBAL matches/{matchId} doc. A uniform 10-minute pre-kickoff
+//   buffer applies in BOTH prediction modes. The client clock is never trusted.
+//
+//   PREDICTION MODES (ticket 019): each group has a `mode` (absent ⇒ 'lazy').
+//     - LAZY (or mode-less): a prediction locks per match at `match.kickoff − 10min`.
+//     - STRICT: predictions lock in two batch windows read from the GLOBAL config/tournament:
+//         * GROUP_STAGE predictions all lock at `firstCupMatchKickoff − 10min`;
+//         * knockout predictions (LAST_32 … FINAL) all lock at `firstKnockoutKickoff − 10min`,
+//           independent of each match's own kickoff.
+//   The group `mode` is admin-writable but FROZEN once `request.time ≥ firstCupMatchKickoff − 10min`.
 //
 // MULTI-TENANT / GROUP MODEL (ticket 012):
 //   Membership, predictions, and leaderboards are PER GROUP, under groups/{gid}.
@@ -172,7 +180,13 @@ service cloud.firestore {
       allow create: if isSignedIn()
         && request.resource.data.ownerUid == request.auth.uid;
 
-      allow update, delete: if isOwner(gid);
+      // Owner may update any non-mode field freely, and may change `mode` before the freeze.
+      // A non-owner GROUP ADMIN may change ONLY `mode`, and only before the freeze. Any mode
+      // change is denied at/after firstCupMatchKickoff − 10min (mode immutability, ticket 019).
+      allow update: if
+        (isOwner(gid) && (!modeChanged() || modeChangeable()))
+        || (!isOwner(gid) && isGroupAdmin(gid) && modeChanged() && modeChangeable() && onlyModeFieldChanged());
+      allow delete: if isOwner(gid);
 
       // ---- groups/{gid}/members ---------------------------------------------
       // Joiners only (the owner is implicit via groups/{gid}.ownerUid).
@@ -260,14 +274,14 @@ service cloud.firestore {
           && request.auth.uid == request.resource.data.uid
           && predId == request.auth.uid + '_' + request.resource.data.matchId
           && predictionShapeValid()
-          && beforeKickoff(request.resource.data.matchId);
+          && predictionWindowOpen(gid, request.resource.data.matchId);
 
         allow update: if isGroupMember(gid)
           && request.auth.uid == request.resource.data.uid
           && predId == request.auth.uid + '_' + request.resource.data.matchId
           && request.resource.data.matchId == resource.data.matchId
           && predictionShapeValid()
-          && beforeKickoff(request.resource.data.matchId);
+          && predictionWindowOpen(gid, request.resource.data.matchId);
 
         allow delete: if false;
       }
@@ -297,18 +311,74 @@ service cloud.firestore {
       return get(/databases/$(database)/documents/matches/$(matchId)).data.kickoff;
     }
 
-    // True while the referenced GLOBAL match exists and has not kicked off (server time).
-    function beforeKickoff(matchId) {
-      return exists(/databases/$(database)/documents/matches/$(matchId))
-        && request.time < matchKickoff(matchId);
-    }
-
     // True once the referenced GLOBAL match exists and HAS kicked off (server time).
     // Backs the reveal-at-kickoff read on group predictions (ticket 013). 1 exists()
     // + 1 get() on the global match doc.
     function matchHasKickedOff(matchId) {
       return exists(/databases/$(database)/documents/matches/$(matchId))
         && request.time >= matchKickoff(matchId);
+    }
+
+    // ---- prediction-mode helpers (ticket 019) -------------------------------
+    // All time comparisons use SERVER request.time against the GLOBAL match doc /
+    // GLOBAL config/tournament, with a uniform 10-minute pre-kickoff buffer.
+    //
+    // COST: the LAZY branch reads only the group doc (cached via isGroupMember) and the
+    // match doc (cached via beforeKickoff). The STRICT branch additionally reads the GLOBAL
+    // config/tournament doc (1 get()) and the match doc's `stage` (same doc, cached). All
+    // get()s for the same path within one evaluation are de-duped, so a strict prediction
+    // write touches ~3 distinct docs (group, match, config/tournament) — within budget.
+
+    // GLOBAL config/tournament: the two batch-window cutoffs the strict mode needs.
+    function tournamentCfg() {
+      return get(/databases/$(database)/documents/config/tournament).data;
+    }
+
+    // The stage of the referenced GLOBAL match ('GROUP_STAGE', 'LAST_32', … 'FINAL').
+    function matchStage(matchId) {
+      return get(/databases/$(database)/documents/matches/$(matchId)).data.stage;
+    }
+
+    // The group's prediction mode; absent ⇒ 'lazy' (back-compat, no backfill).
+    function groupMode(gid) {
+      return groupData(gid).get('mode', 'lazy');
+    }
+
+    // STRICT: a GROUP_STAGE prediction locks at firstCupMatchKickoff − 10min; any other
+    // (knockout) stage locks at firstKnockoutKickoff − 10min — independent of the match's
+    // own kickoff.
+    function strictWindowOpen(matchId) {
+      return matchStage(matchId) == 'GROUP_STAGE'
+        ? request.time < tournamentCfg().firstCupMatchKickoff - duration.value(10, 'm')
+        : request.time < tournamentCfg().firstKnockoutKickoff - duration.value(10, 'm');
+    }
+
+    // True while a prediction for `matchId` may be written under group `gid`'s mode.
+    // The GLOBAL match must exist; strict reads config/tournament, lazy uses match.kickoff.
+    function predictionWindowOpen(gid, matchId) {
+      return exists(/databases/$(database)/documents/matches/$(matchId))
+        && (groupMode(gid) == 'strict'
+            ? strictWindowOpen(matchId)
+            : request.time < matchKickoff(matchId) - duration.value(10, 'm'));
+    }
+
+    // ---- group-mode write gating (ticket 019) -------------------------------
+    // True iff this update changes the group's `mode` (absent treated as 'lazy').
+    function modeChanged() {
+      return resource.data.get('mode', 'lazy') != request.resource.data.get('mode', 'lazy');
+    }
+
+    // The freeze instant: a mode change is allowed only before firstCupMatchKickoff − 10min.
+    // If config/tournament isn't seeded yet, the tournament isn't configured (necessarily
+    // before the first match) so changing mode stays open — setup can't be bricked.
+    function modeChangeable() {
+      return !exists(/databases/$(database)/documents/config/tournament)
+        || request.time < tournamentCfg().firstCupMatchKickoff - duration.value(10, 'm');
+    }
+
+    // True iff the ONLY field this update touches is `mode` (used to confine non-owner admins).
+    function onlyModeFieldChanged() {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(['mode']);
     }
   }
 }

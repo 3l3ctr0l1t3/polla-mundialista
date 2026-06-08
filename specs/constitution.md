@@ -19,7 +19,10 @@ constitution. Changing a principle here is a deliberate, reviewed act.
    The browser never writes results or points.
 
 4. **Authoritative kickoff lock.** Prediction locking is enforced in Firestore security rules using server
-   time (`request.time < match.kickoff`). The client clock is never trusted; UI locking is convenience only.
+   time with a **10-minute pre-kickoff buffer** (`request.time < match.kickoff − 10min`). The client clock
+   is never trusted; UI locking is convenience only. In a **strict** group (ticket 019) the same −10min
+   buffer applies to the two batch windows instead of per match: all group-stage predictions lock 10 min
+   before the first cup match, all knockout predictions 10 min before the first knockout match.
 
 5. **No secrets in the repo.** The repository is **public**. The football-data.org API key and the Firebase
    service-account JSON live **only in GitHub Secrets**. Local admin keys and `.env.local` are gitignored.

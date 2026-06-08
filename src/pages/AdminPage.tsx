@@ -25,20 +25,27 @@ import DialogTitle from '@mui/material/DialogTitle'
 import DialogContent from '@mui/material/DialogContent'
 import DialogContentText from '@mui/material/DialogContentText'
 import DialogActions from '@mui/material/DialogActions'
+import ToggleButton from '@mui/material/ToggleButton'
+import ToggleButtonGroup from '@mui/material/ToggleButtonGroup'
 import CheckIcon from '@mui/icons-material/Check'
 import CloseIcon from '@mui/icons-material/Close'
 import HowToRegIcon from '@mui/icons-material/HowToReg'
 import PeopleIcon from '@mui/icons-material/People'
+import TuneIcon from '@mui/icons-material/Tune'
+import LockIcon from '@mui/icons-material/Lock'
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutlineOutlined'
 import { deleteDoc, serverTimestamp, updateDoc } from 'firebase/firestore'
 import { useTranslation } from 'react-i18next'
-import { groupMemberDoc } from '../firebase/db'
+import { groupDoc, groupMemberDoc } from '../firebase/db'
 import { useAuth } from '../auth/useAuth'
 import { useGroup } from '../group/useGroup'
+import { useServerTime } from '../hooks/useServerTime'
+import { useTournamentConfig } from '../hooks/useTournamentConfig'
 import { usePendingMembers } from '../hooks/usePendingMembers'
 import { useApprovedMembers } from '../hooks/useApprovedMembers'
+import { effectiveMode, LOCK_BUFFER_MS } from '../shared/predictionLock'
 import { LoadingState, EmptyState, ErrorState } from '../components/states'
-import type { Member, MemberStatus } from '../shared/types'
+import type { Member, MemberStatus, PredictionMode } from '../shared/types'
 
 /** A single pending-request row with Approve / Reject actions. */
 function PendingRow({
@@ -156,6 +163,8 @@ export function AdminPage() {
   const { t } = useTranslation()
   const { user } = useAuth()
   const { gid, group } = useGroup()
+  const { now } = useServerTime()
+  const { cutoffs } = useTournamentConfig()
   const { members, loading, error } = usePendingMembers(gid)
   const {
     members: approvedMembers,
@@ -165,7 +174,26 @@ export function AdminPage() {
   const [pendingUid, setPendingUid] = useState<string | null>(null)
   const [toRemove, setToRemove] = useState<Member | null>(null)
   const [removingUid, setRemovingUid] = useState<string | null>(null)
+  const [savingMode, setSavingMode] = useState(false)
   const [snack, setSnack] = useState<string | null>(null)
+
+  // The mode freezes 10 min before the first cup match (== the strict group-stage window).
+  // Until `config/tournament` is seeded, treat as not-frozen (the tournament hasn't started).
+  const mode = effectiveMode(group ?? {})
+  const freezeInstantMs = cutoffs ? cutoffs.firstCupMatchKickoffMs - LOCK_BUFFER_MS : null
+  const frozen = freezeInstantMs !== null && now() >= freezeInstantMs
+
+  const handleModeChange = async (_e: unknown, next: PredictionMode | null) => {
+    if (!next || next === mode || frozen) return
+    setSavingMode(true)
+    try {
+      await updateDoc(groupDoc(gid), { mode: next })
+    } catch {
+      setSnack(t('admin.modeError'))
+    } finally {
+      setSavingMode(false)
+    }
+  }
 
   const handleDecide = async (
     targetUid: string,
@@ -201,7 +229,41 @@ export function AdminPage() {
 
   return (
     <Box sx={{ maxWidth: 720, mx: 'auto', width: '100%' }}>
-      <Stack direction="row" spacing={1} sx={{ alignItems: 'center', mb: 2 }}>
+      <Stack direction="row" spacing={1} sx={{ alignItems: 'center', mb: 1 }}>
+        <TuneIcon aria-hidden color="primary" />
+        <Typography variant="h5" component="h2">
+          {t('admin.predictionMode')}
+        </Typography>
+      </Stack>
+      <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
+        {t('admin.predictionModeDescription')}
+      </Typography>
+      <ToggleButtonGroup
+        exclusive
+        color="primary"
+        value={mode}
+        onChange={handleModeChange}
+        disabled={frozen || savingMode}
+        aria-label={t('admin.predictionMode')}
+        sx={{ mb: frozen ? 1 : 0 }}
+      >
+        <ToggleButton value="lazy" aria-label={t('admin.modeLazy')}>
+          {t('admin.modeLazy')}
+        </ToggleButton>
+        <ToggleButton value="strict" aria-label={t('admin.modeStrict')}>
+          {t('admin.modeStrict')}
+        </ToggleButton>
+      </ToggleButtonGroup>
+      {frozen && (
+        <Stack direction="row" spacing={0.5} sx={{ alignItems: 'center', mt: 1 }}>
+          <LockIcon fontSize="inherit" color="action" aria-hidden />
+          <Typography variant="caption" color="text.secondary">
+            {t('admin.modeFrozen')}
+          </Typography>
+        </Stack>
+      )}
+
+      <Stack direction="row" spacing={1} sx={{ alignItems: 'center', mt: 4, mb: 2 }}>
         <HowToRegIcon aria-hidden color="primary" />
         <Typography variant="h5" component="h2">
           {t('admin.joinRequests')}

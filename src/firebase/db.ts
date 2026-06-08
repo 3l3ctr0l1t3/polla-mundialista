@@ -30,6 +30,7 @@ import type {
   ScoringConfigDoc,
   AllowlistConfig,
   MetaConfig,
+  TournamentConfig,
 } from '../shared/types'
 
 export const db = getFirestore(app)
@@ -56,6 +57,7 @@ export const standingConverter = makeConverter<Standing>()
 export const scoringConfigConverter = makeConverter<ScoringConfigDoc>()
 export const allowlistConfigConverter = makeConverter<AllowlistConfig>()
 export const metaConfigConverter = makeConverter<MetaConfig>()
+export const tournamentConfigConverter = makeConverter<TournamentConfig>()
 
 /* --------------------------------------------------- typed collection refs */
 
@@ -168,3 +170,7 @@ export const allowlistConfigDoc = (): DocumentReference<AllowlistConfig> =>
 
 export const metaConfigDoc = (): DocumentReference<MetaConfig> =>
   doc(db, 'config', 'meta').withConverter(metaConfigConverter)
+
+/** `config/tournament` — strict-window kickoff cutoffs (ticket 019); admin-SDK-written. */
+export const tournamentConfigDoc = (): DocumentReference<TournamentConfig> =>
+  doc(db, 'config', 'tournament').withConverter(tournamentConfigConverter)

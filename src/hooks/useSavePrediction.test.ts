@@ -27,6 +27,9 @@ vi.mock('../auth/useAuth', () => ({
 // --- fixtures --------------------------------------------------------------
 
 const KICKOFF_MS = new Date('2026-06-11T20:00:00Z').getTime()
+// Lazy lock fires 10 min before kickoff (LOCK_BUFFER_MS); the open/locked helpers below
+// straddle that lock instant, not raw kickoff.
+const LOCK_MS = KICKOFF_MS - 10 * 60 * 1000
 
 function makeMatch(): Match {
   return {
@@ -42,8 +45,8 @@ function makeMatch(): Match {
   }
 }
 
-const beforeKickoff = () => KICKOFF_MS - 60_000 // 1 min before
-const afterKickoff = () => KICKOFF_MS + 60_000 // 1 min after
+const beforeKickoff = () => LOCK_MS - 60_000 // 1 min before the lock (window open)
+const afterKickoff = () => LOCK_MS + 60_000 // 1 min after the lock (window closed)
 
 beforeEach(() => {
   setDocMock.mockClear()
@@ -52,12 +55,42 @@ beforeEach(() => {
 })
 
 describe('useSavePrediction', () => {
-  it('is unlocked before kickoff and locked at/after kickoff', () => {
+  it('is unlocked before the lock instant and locked at/after it', () => {
     const open = renderHook(() => useSavePrediction('g1', makeMatch(), undefined, beforeKickoff))
     expect(open.result.current.locked).toBe(false)
 
     const closed = renderHook(() => useSavePrediction('g1', makeMatch(), undefined, afterKickoff))
     expect(closed.result.current.locked).toBe(true)
+  })
+
+  it('locks 10 min before kickoff in lazy mode (the −10min buffer)', () => {
+    // 9 min before kickoff is INSIDE the buffer ⇒ already locked.
+    const justInsideBuffer = () => KICKOFF_MS - 9 * 60 * 1000
+    const inside = renderHook(() =>
+      useSavePrediction('g1', makeMatch(), undefined, justInsideBuffer, 'lazy'),
+    )
+    expect(inside.result.current.locked).toBe(true)
+
+    // 11 min before kickoff is OUTSIDE the buffer ⇒ still open.
+    const justOutsideBuffer = () => KICKOFF_MS - 11 * 60 * 1000
+    const outside = renderHook(() =>
+      useSavePrediction('g1', makeMatch(), undefined, justOutsideBuffer, 'lazy'),
+    )
+    expect(outside.result.current.locked).toBe(false)
+  })
+
+  it('strict GROUP_STAGE locks at firstCupMatchKickoff − 10min, not the match kickoff', () => {
+    const cupFirstMs = KICKOFF_MS - 2 * 24 * 60 * 60 * 1000 // first cup match 2 days earlier
+    const cutoffs = {
+      firstCupMatchKickoffMs: cupFirstMs,
+      firstKnockoutKickoffMs: KICKOFF_MS + 7 * 24 * 60 * 60 * 1000,
+    }
+    // Past the strict group window (cupFirst − 10min) but well before this match's own kickoff.
+    const afterWindow = () => cupFirstMs - 9 * 60 * 1000
+    const { result } = renderHook(() =>
+      useSavePrediction('g1', makeMatch(), undefined, afterWindow, 'strict', cutoffs),
+    )
+    expect(result.current.locked).toBe(true)
   })
 
   it('writes a new prediction with the right ref + shape (createdAt + updatedAt, merge)', async () => {

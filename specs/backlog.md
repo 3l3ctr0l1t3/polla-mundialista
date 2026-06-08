@@ -24,6 +24,7 @@ Dependency order: 001 → 002 → 003 → (004, 006 parallel) → 005 → 007 �
 | 016 | Installable PWA (app shell offline) | ✅¹ | 009, 010 | react-mui-builder |
 | 017 | Localization (i18n) + Spanish | ✅ | 009 | react-mui-builder |
 | 018 | Unified fixture+prediction card | ✅ | 013, 017 | react-mui-builder |
+| 019 | Group prediction modes (Lazy vs Strict) | 🟨 | 012, 013, 018 | firestore-rules-engineer + react-mui-builder |
 
 > 012 restructures predictions/leaderboard/membership to be **per-group** (supersedes the single-pool
 > parts of 005/007/011); matches/standings/config stay global. Built in phases A–D (see 012/plan.md).
@@ -58,7 +59,16 @@ Chrome DevTools against the deployed HTTPS site after the next hosting deploy.
 5. **Design:** first-pass dark-neon "La Pollita" theme APPLIED (009 — Barlow type, dark palette, neon glow,
    deployed). Remaining: a **pixel pass from screenshots** (LIVE-dot pulse, enter/toast animations,
    mint-tinted card strokes, large condensed score/point numerals) + Lighthouse.
-6. **Confirm scoring intent** (006/008): with the default config an **exact** scoreline scores **6**
+6. **Strict prediction modes (ticket 019)** — runtime live (🟨, pending only a live smoke-test).
+   **(a) DONE** — mode-aware rules deployed to `la-pollita-corp` (2026-06-08); the §4 **10-minute
+   pre-kickoff buffer** is live for ALL prediction locks; lazy groups (the default for every existing
+   group) work today. **(b) DONE** — `config/tournament` seeded (2026-06-08) via the surgical
+   `scripts/ingest/seedTournamentConfig.ts` (reads existing matches, writes ONLY that one doc — no
+   football-data call, nothing else touched): `firstCupMatchKickoff = 2026-06-11T19:00Z`,
+   `firstKnockoutKickoff = 2026-06-28T19:00Z`. Strict groups now function. **Remaining for ✅:** a live
+   click-test of a strict window in the deployed app (set a group to strict, confirm the window/freeze
+   behave), per constitution §7 (done = verified end-to-end).
+7. **Confirm scoring intent** (006/008): with the default config an **exact** scoreline scores **6**
    (exact 5 + goal-diff bonus 1), since an exact result always has the right goal difference. If you
    want exact to be a flat 5, set `goalDiffOnlyOnCorrectOutcome` aside and exclude the bonus on exact.
 

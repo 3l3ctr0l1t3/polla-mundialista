@@ -3,7 +3,8 @@ import { render, screen, waitFor, fireEvent } from '@testing-library/react'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { ThemeProvider } from '@mui/material/styles'
 import { theme } from '../theme/theme'
-import type { Match, Prediction } from '../shared/types'
+import type { Match, Prediction, PredictionMode } from '../shared/types'
+import type { TournamentCutoffsMs } from '../shared/predictionLock'
 
 // --- mocks -----------------------------------------------------------------
 
@@ -26,6 +27,23 @@ vi.mock('../auth/useAuth', () => ({
   useAuth: () => ({ user: { uid: 'u1', email: 'a@b.com' }, loading: false }),
 }))
 
+// Group context: default lazy (mode absent). The card reads `group.mode` via `effectiveMode`.
+const useGroupMock = vi.fn((): { group: { mode: PredictionMode | undefined } } => ({
+  group: { mode: undefined },
+}))
+vi.mock('../group/useGroup', () => ({ useGroup: () => useGroupMock() }))
+
+// Tournament cutoffs: default none (lazy fallback). Strict tests override.
+const useTournamentConfigMock = vi.fn(
+  (): { cutoffs: TournamentCutoffsMs | undefined; loading: boolean } => ({
+    cutoffs: undefined,
+    loading: false,
+  }),
+)
+vi.mock('../hooks/useTournamentConfig', () => ({
+  useTournamentConfig: () => useTournamentConfigMock(),
+}))
+
 // The reveal dialog is Firestore-backed and covered by its own tests; stub it to a
 // recognizable marker that reflects its `open`/`kickedOff` props so this card test stays
 // focused on the card.
@@ -40,8 +58,10 @@ import { FixtureCard } from './FixtureCard'
 // --- fixtures --------------------------------------------------------------
 
 const KICKOFF_MS = new Date('2026-06-11T20:00:00Z').getTime()
-const beforeKickoff = () => KICKOFF_MS - 60_000
-const afterKickoff = () => KICKOFF_MS + 60_000
+// Lazy lock fires 10 min before kickoff; straddle the lock instant, not raw kickoff.
+const LOCK_MS = KICKOFF_MS - 10 * 60 * 1000
+const beforeKickoff = () => LOCK_MS - 60_000 // window open
+const afterKickoff = () => KICKOFF_MS + 60_000 // past kickoff (and the lock)
 
 function makeMatch(overrides: Partial<Match> = {}): Match {
   return {
@@ -79,6 +99,8 @@ beforeEach(() => {
   groupPredictionDocMock.mockClear()
   dialogMock.mockReset()
   dialogMock.mockReturnValue(null)
+  useGroupMock.mockReturnValue({ group: { mode: undefined } })
+  useTournamentConfigMock.mockReturnValue({ cutoffs: undefined, loading: false })
 })
 
 describe('FixtureCard', () => {
@@ -160,5 +182,20 @@ describe('FixtureCard', () => {
     expect(dialogMock).toHaveBeenLastCalledWith(
       expect.objectContaining({ open: false, kickedOff: false }),
     )
+  })
+
+  it('shows the strict group-window lock hint when the group is strict', () => {
+    useGroupMock.mockReturnValue({ group: { mode: 'strict' } })
+    useTournamentConfigMock.mockReturnValue({
+      cutoffs: {
+        firstCupMatchKickoffMs: KICKOFF_MS,
+        firstKnockoutKickoffMs: KICKOFF_MS + 7 * 24 * 60 * 60 * 1000,
+      },
+      loading: false,
+    })
+    // A group-stage match whose own kickoff is far in the future; the lock is the group window.
+    const match = makeMatch({ kickoff: makeMatch().kickoff, stage: 'GROUP_STAGE' })
+    renderCard(<FixtureCard gid="g1" match={match} now={beforeKickoff} />)
+    expect(screen.getByText(/group-stage picks lock/i)).toBeInTheDocument()
   })
 })

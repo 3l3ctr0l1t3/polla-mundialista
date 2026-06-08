@@ -40,6 +40,9 @@ import type { Match, Team, Prediction } from '../shared/types'
 import { isTbdTeam } from '../hooks/matchGrouping'
 import { useTbdLabel } from './useTbdLabel'
 import { useSavePrediction, toGoals } from '../hooks/useSavePrediction'
+import { useGroup } from '../group/useGroup'
+import { useTournamentConfig } from '../hooks/useTournamentConfig'
+import { effectiveMode, lockTimeMs } from '../shared/predictionLock'
 import { MatchPredictionsDialog } from './MatchPredictionsDialog'
 import { CountdownToKickoff } from './CountdownToKickoff'
 
@@ -91,7 +94,6 @@ function TeamName({
   return (
     <Typography
       variant="body2"
-      noWrap
       title={name}
       sx={{
         flex: { sm: 1 },
@@ -100,7 +102,12 @@ function TeamName({
         width: { xs: '100%', sm: 'auto' },
         textAlign: { xs: 'center', sm: align },
         fontWeight: 600,
+        lineHeight: 1.15,
         color: tbd ? 'text.secondary' : 'text.primary',
+        // Mobile: wrap so the full country name shows (centered). Desktop: ellipsize on the line.
+        whiteSpace: { xs: 'normal', sm: 'nowrap' },
+        overflow: { sm: 'hidden' },
+        textOverflow: { sm: 'ellipsis' },
       }}
     >
       {name}
@@ -179,8 +186,14 @@ function Stepper({
 export function FixtureCard({ gid, match, existing, now }: FixtureCardProps) {
   const { t } = useTranslation()
   const tbdLabel = useTbdLabel()
+  const { group } = useGroup()
+  const { cutoffs } = useTournamentConfig()
   const { homeTeam, awayTeam, score, status, kickoff } = match
   const kickoffLocal = dayjs(kickoff.toDate())
+
+  // Mode-aware lock: the countdown + `useSavePrediction` target the SAME instant the rules do.
+  const mode = effectiveMode(group ?? {})
+  const lockMs = lockTimeMs(match, mode, cutoffs)
 
   const played = score.home !== null && score.away !== null
   const showResult = played || status === 'IN_PLAY' || status === 'PAUSED'
@@ -198,7 +211,19 @@ export function FixtureCard({ gid, match, existing, now }: FixtureCardProps) {
     snack,
     dismissSnack,
     save,
-  } = useSavePrediction(gid, match, existing, now)
+  } = useSavePrediction(gid, match, existing, now, mode, cutoffs)
+
+  // Strict mode: the lock is the whole group/knockout window, not this match's kickoff.
+  const strictLockHint =
+    mode === 'strict' && cutoffs
+      ? match.stage === 'GROUP_STAGE'
+        ? t('predictions.strictGroupLock', {
+            time: dayjs(cutoffs.firstCupMatchKickoffMs).format('MMM D, HH:mm'),
+          })
+        : t('predictions.strictKnockoutLock', {
+            time: dayjs(cutoffs.firstKnockoutKickoffMs).format('MMM D, HH:mm'),
+          })
+      : null
 
   const [dialogOpen, setDialogOpen] = useState(false)
   // Server-corrected reveal gate; the Firestore rule is the real authority.
@@ -241,11 +266,7 @@ export function FixtureCard({ gid, match, existing, now }: FixtureCardProps) {
             <Typography variant="caption" color="text.secondary" noWrap sx={{ minWidth: 0 }}>
               {caption}
             </Typography>
-            {editable ? (
-              <CountdownToKickoff kickoffMs={kickoff.toMillis()} now={now} />
-            ) : (
-              statusChip
-            )}
+            {editable ? <CountdownToKickoff kickoffMs={lockMs} now={now} /> : statusChip}
           </Stack>
 
           {/* One line: home name · home flag · prediction/result · away flag · away name. */}
@@ -346,6 +367,19 @@ export function FixtureCard({ gid, match, existing, now }: FixtureCardProps) {
             >
               {existing ? t('predictions.update') : t('predictions.save')}
             </Button>
+          )}
+
+          {/* Mode hint: lazy labels the per-match countdown; strict explains the window lock. */}
+          {editable && (
+            <Typography
+              variant="caption"
+              color="text.secondary"
+              sx={{ textAlign: 'center', lineHeight: 1.3 }}
+            >
+              {mode === 'strict'
+                ? (strictLockHint ?? t('predictions.lazyLockHint'))
+                : t('predictions.lazyLockHint')}
+            </Typography>
           )}
 
           {/* Live/finished: surface the viewer's own prediction subtly. */}

@@ -50,7 +50,22 @@ export interface Group {
   /** Unguessable token for invite links; approval is still required. */
   inviteCode: string
   createdAt: Timestamp
+  /**
+   * When/how members may submit predictions (ticket 019). **Absent ⇒ `'lazy'`** — every
+   * group created before this ticket has no `mode` field and is treated as lazy (no
+   * backfill). A group admin may switch lazy↔strict only until the freeze instant
+   * (`config/tournament.firstCupMatchKickoff − 10min`); see `firestore.rules`.
+   */
+  mode?: PredictionMode
 }
+
+/**
+ * A group's prediction mode (ticket 019):
+ *   - `lazy`   — edit each match until **10 min before that match's kickoff** (per match).
+ *   - `strict` — two batch windows: ALL group-stage picks lock 10 min before the first cup
+ *     match; ALL knockout picks lock 10 min before the first knockout match.
+ */
+export type PredictionMode = 'lazy' | 'strict'
 
 /* -------------------------------------------------------------- members */
 
@@ -254,4 +269,17 @@ export interface MetaConfig {
   tournamentStart: Timestamp
   tournamentEnd: Timestamp
   lastIngestAt: Timestamp | null
+}
+
+/**
+ * `config/tournament` — the two kickoff cutoffs that drive **strict** prediction windows
+ * (ticket 019). Written ONLY by the ingestion service account (computed `min(kickoff)`
+ * per stage); read by the browser and by `firestore.rules` (which `get()`s it to gate
+ * strict-group writes and the group-mode freeze). Clients are read-only.
+ */
+export interface TournamentConfig {
+  /** Kickoff of the first `GROUP_STAGE` match — the cup's first match. */
+  firstCupMatchKickoff: Timestamp
+  /** Kickoff of the first `LAST_32` (knockout) match. */
+  firstKnockoutKickoff: Timestamp
 }

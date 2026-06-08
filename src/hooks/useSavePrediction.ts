@@ -21,7 +21,8 @@ import { useTranslation } from 'react-i18next'
 import { setDoc, serverTimestamp } from 'firebase/firestore'
 import { groupPredictionDoc } from '../firebase/db'
 import { useAuth } from '../auth/useAuth'
-import type { Match, Prediction } from '../shared/types'
+import { lockTimeMs, type TournamentCutoffsMs } from '../shared/predictionLock'
+import type { Match, Prediction, PredictionMode } from '../shared/types'
 
 export interface SaveSnack {
   message: string
@@ -33,7 +34,10 @@ export interface UseSavePrediction {
   awayGoals: number
   setHomeGoals: (n: number) => void
   setAwayGoals: (n: number) => void
-  /** True once `now() >= match.kickoff` (server-corrected). The rule is the real gate. */
+  /**
+   * True once `now() >= lockTimeMs(match, mode, cutoffs)` (server-corrected) — i.e. the
+   * mode-aware lock instant (10 min before kickoff/window). The rule is the real gate.
+   */
   locked: boolean
   /** True when there's no saved prediction yet, or the values differ from the saved one. */
   dirty: boolean
@@ -54,6 +58,8 @@ export function useSavePrediction(
   match: Match,
   existing: Prediction | undefined,
   now: () => number,
+  mode: PredictionMode = 'lazy',
+  cutoffs?: TournamentCutoffsMs,
 ): UseSavePrediction {
   const { t } = useTranslation()
   const { user } = useAuth()
@@ -68,7 +74,7 @@ export function useSavePrediction(
     setAwayGoals(existing?.awayGoals ?? 0)
   }, [existing?.homeGoals, existing?.awayGoals])
 
-  const locked = now() >= match.kickoff.toMillis()
+  const locked = now() >= lockTimeMs(match, mode, cutoffs)
 
   // Saveable only when there's a real change: no saved prediction yet (a first save —
   // including a deliberate 0–0 — is allowed) or the values differ from what's saved.

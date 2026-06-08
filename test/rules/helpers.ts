@@ -1,4 +1,5 @@
 import { initializeTestEnvironment, type RulesTestEnvironment } from '@firebase/rules-unit-testing'
+import { doc, setDoc, Timestamp } from 'firebase/firestore'
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { dirname, resolve } from 'node:path'
@@ -41,3 +42,34 @@ export const PAST_KICKOFF = new Date('2026-06-01T18:00:00Z')
 
 export const MATCH_ID = '529001'
 export const PAST_MATCH_ID = '529000'
+
+// ---- relative-time helpers (ticket 019) ----------------------------------
+// Offsets are expressed in MINUTES relative to the real `now` so that the
+// (tiny, ms-scale) latency between seeding and the rules' `request.time`
+// evaluation is negligible against the 10-minute buffer. `n` may be negative.
+
+/** A JS Date at `now + n minutes` (n may be negative for the past). */
+export function minutesFromNow(n: number): Date {
+  return new Date(Date.now() + n * 60_000)
+}
+
+/** A Firestore Timestamp at `now + n minutes`. */
+export function tsMinutesFromNow(n: number): Timestamp {
+  return Timestamp.fromDate(minutesFromNow(n))
+}
+
+/**
+ * Seed the GLOBAL `config/tournament` doc (admin-SDK-only in prod) with the two
+ * strict-window cutoffs, using rules-disabled context. Accepts JS `Date`s.
+ */
+export async function seedTournamentConfig(
+  env: RulesTestEnvironment,
+  cutoffs: { firstCupMatchKickoff: Date; firstKnockoutKickoff: Date },
+): Promise<void> {
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    await setDoc(doc(ctx.firestore(), 'config', 'tournament'), {
+      firstCupMatchKickoff: Timestamp.fromDate(cutoffs.firstCupMatchKickoff),
+      firstKnockoutKickoff: Timestamp.fromDate(cutoffs.firstKnockoutKickoff),
+    })
+  })
+}

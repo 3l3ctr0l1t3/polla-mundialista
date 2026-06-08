@@ -130,7 +130,10 @@
     "pts": "{{count}} pts",
     "earnedPoints": "Earned {{count}} points",
     "openDialog": "Predictions",
-    "yourPrediction": "Your prediction {{home}}–{{away}}"
+    "yourPrediction": "Your prediction {{home}}–{{away}}",
+    "lazyLockHint": "Locks 10 min before kickoff",
+    "strictGroupLock": "Strict: all group-stage picks lock {{time}}",
+    "strictKnockoutLock": "Strict: all knockout picks lock {{time}}"
   },
   "match": {
     "tbd": "TBD",
@@ -184,6 +187,12 @@
     "emptyDescription": "Group tables appear once the tournament fixtures have been loaded."
   },
   "admin": {
+    "predictionMode": "Prediction mode",
+    "predictionModeDescription": "Choose when members can submit predictions. Lazy: edit each match until 10 minutes before its kickoff. Strict: all group-stage picks lock 10 minutes before the first match, and all knockout picks lock 10 minutes before the first knockout match.",
+    "modeLazy": "Lazy",
+    "modeStrict": "Strict",
+    "modeFrozen": "The tournament has started — the prediction mode can no longer be changed.",
+    "modeError": "Could not change the prediction mode. Please try again.",
     "joinRequests": "Join requests",
     "loadingRequests": "Loading join requests",
     "requestsErrorTitle": "Couldn't load requests",

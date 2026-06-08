@@ -38,7 +38,7 @@ describe('AppShell', () => {
         <div>child content</div>
       </AppShell>,
     )
-    expect(screen.getByRole('heading', { name: 'Polla Mundialista' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'La Pollita CORP' })).toBeInTheDocument()
   })
 
   it('renders its children', () => {

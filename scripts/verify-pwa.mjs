@@ -41,8 +41,8 @@ if (check('dist/manifest.webmanifest exists', existsSync(manifestPath))) {
 }
 
 if (manifest) {
-  check('manifest.name === "Polla Mundialista"', manifest.name === 'Polla Mundialista')
-  check('manifest.short_name === "Polla"', manifest.short_name === 'Polla')
+  check('manifest.name === "La Pollita CORP"', manifest.name === 'La Pollita CORP')
+  check('manifest.short_name === "La Pollita"', manifest.short_name === 'La Pollita')
   check(
     'manifest.start_url present',
     typeof manifest.start_url === 'string' && manifest.start_url.length > 0,

@@ -56,6 +56,6 @@ describe('App route guard', () => {
 
   it('shows the app title', async () => {
     renderApp()
-    expect((await screen.findAllByText('Polla Mundialista')).length).toBeGreaterThan(0)
+    expect((await screen.findAllByText('La Pollita CORP')).length).toBeGreaterThan(0)
   })
 })

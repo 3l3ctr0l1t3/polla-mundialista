@@ -11,10 +11,10 @@ export default defineConfig({
       // autoUpdate: a new build (new asset hashes) silently takes over on the
       // next load — no manual cache clear, no user prompt. Satisfies AC5.
       registerType: 'autoUpdate',
-      includeAssets: ['favicon.ico', 'apple-touch-icon-180x180.png', 'pwa-icon.svg'],
+      includeAssets: ['favicon.ico', 'apple-touch-icon-180x180.png'],
       manifest: {
-        name: 'Polla Mundialista',
-        short_name: 'Polla',
+        name: 'La Pollita CORP',
+        short_name: 'La Pollita',
         description: 'FIFA World Cup 2026 score-prediction pool',
         start_url: '/',
         scope: '/',

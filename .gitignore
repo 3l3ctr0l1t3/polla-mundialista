@@ -41,6 +41,10 @@ coverage/
 # Design prototypes / scratch (large self-contained bundles; keep out of the public repo)
 *standalone*.html
 __tmp_*
+# Raw brand mockups dropped in for icon extraction (the committed source-of-record is
+# pwa-icon-source.png, generated from these). Keep the bulky originals out of the repo.
+Logo.jpg
+Gemini_Generated_Image_*.png
 
 # Editor / OS
 .DS_Store

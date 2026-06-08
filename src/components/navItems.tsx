@@ -6,6 +6,7 @@ import LeaderboardIcon from '@mui/icons-material/Leaderboard'
 import StadiumIcon from '@mui/icons-material/Stadium'
 import HowToRegIcon from '@mui/icons-material/HowToReg'
 import GroupsIcon from '@mui/icons-material/Groups'
+import ScienceIcon from '@mui/icons-material/Science'
 
 export interface NavItem {
   /** Stable key used for selection + as React key. The group-scoped path segment. */
@@ -46,4 +47,14 @@ export function adminNavItem(t: TFunction): NavItem {
  */
 export function myGroupsNavItem(t: TFunction): NavItem {
   return { key: 'groups', label: t('nav.myGroups'), icon: <GroupsIcon /> }
+}
+
+/**
+ * Canvas design-sandbox destination. Appended by the app shell only for the app
+ * superadmin (or in local dev). Not a user-facing feature — label stays English.
+ */
+export const CANVAS_NAV_ITEM: NavItem = {
+  key: 'canvas',
+  label: 'Canvas',
+  icon: <ScienceIcon />,
 }

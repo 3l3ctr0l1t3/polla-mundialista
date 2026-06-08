@@ -14,21 +14,31 @@ import Box from '@mui/material/Box'
 import { Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import AppShell from '../components/AppShell'
-import { defaultNavItems, adminNavItem, myGroupsNavItem } from '../components/navItems'
+import {
+  defaultNavItems,
+  adminNavItem,
+  myGroupsNavItem,
+  CANVAS_NAV_ITEM,
+} from '../components/navItems'
 import { LoadingState, ErrorState } from '../components/states'
 import { useGroup } from './useGroup'
+import { useAuth } from '../auth/useAuth'
 import MembershipGate from '../pages/MembershipGate'
 import FixturesPage from '../pages/FixturesPage'
 import PredictionsPage from '../pages/PredictionsPage'
 import LeaderboardPage from '../pages/LeaderboardPage'
 import StandingsPage from '../pages/StandingsPage'
 import AdminPage from '../pages/AdminPage'
+import CanvasPage from '../pages/CanvasPage'
 
 export function GroupApp() {
   const { gid, group, isGroupMember, isGroupAdmin, loading, error } = useGroup()
+  const { isSuperAdmin } = useAuth()
   const { t } = useTranslation()
   const location = useLocation()
   const navigate = useNavigate()
+  // Canvas design sandbox: app superadmin, or anyone running locally (`npm run dev`).
+  const showCanvas = isSuperAdmin || import.meta.env.DEV
 
   if (loading) {
     return (
@@ -69,6 +79,7 @@ export function GroupApp() {
   const navItems = [
     ...defaultNavItems(t),
     ...(isGroupAdmin ? [adminNavItem(t)] : []),
+    ...(showCanvas ? [CANVAS_NAV_ITEM] : []),
     myGroupsNavItem(t),
   ]
 
@@ -96,6 +107,10 @@ export function GroupApp() {
         <Route
           path="admin"
           element={isGroupAdmin ? <AdminPage /> : <Navigate to="../fixtures" replace />}
+        />
+        <Route
+          path="canvas"
+          element={showCanvas ? <CanvasPage /> : <Navigate to="../fixtures" replace />}
         />
         <Route path="*" element={<Navigate to="fixtures" replace />} />
       </Routes>

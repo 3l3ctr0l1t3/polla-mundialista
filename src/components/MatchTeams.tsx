@@ -18,7 +18,7 @@ import Avatar from '@mui/material/Avatar'
 import SportsSoccerIcon from '@mui/icons-material/SportsSoccer'
 import type { Team } from '../shared/types'
 import { isTbdTeam } from '../hooks/matchGrouping'
-import { useTbdLabel } from './useTbdLabel'
+import { useTeamName } from '../i18n/useTeamName'
 
 // `TBD_LABEL` (i18n key) and `useTbdLabel` now live in ./useTbdLabel so this file
 // only exports components (react-refresh/only-export-components).
@@ -35,9 +35,9 @@ export interface MatchTeamsProps {
 }
 
 function TeamRow({ team, align }: { team: Team; align: 'start' | 'end' }) {
-  const tbdLabel = useTbdLabel()
+  const teamName = useTeamName()
   const tbd = isTbdTeam(team)
-  const name = tbd ? tbdLabel : team.name
+  const name = teamName(team)
   const crest = !tbd && team.crest ? team.crest : undefined
   const avatar = (
     <Avatar

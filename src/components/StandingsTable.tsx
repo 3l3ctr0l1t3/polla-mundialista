@@ -19,6 +19,7 @@ import Avatar from '@mui/material/Avatar'
 import SportsSoccerIcon from '@mui/icons-material/SportsSoccer'
 import type { Standing } from '../shared/types'
 import { isTbdTeam } from '../hooks/matchGrouping'
+import { useTeamName } from '../i18n/useTeamName'
 
 export interface StandingsTableProps {
   standing: Standing
@@ -37,6 +38,7 @@ const NUMERIC_COLS: { key: string; short: string; full: string }[] = [
 ]
 
 export function StandingsTable({ standing }: StandingsTableProps) {
+  const teamName = useTeamName()
   const rows = [...standing.table].sort((a, b) => a.position - b.position)
 
   return (
@@ -65,7 +67,7 @@ export function StandingsTable({ standing }: StandingsTableProps) {
           <TableBody>
             {rows.map((row) => {
               const tbd = isTbdTeam(row.team)
-              const name = tbd ? 'TBD' : row.team.name
+              const name = teamName(row.team)
               return (
                 <TableRow key={`${standing.groupId}-${row.position}-${row.team.id}`}>
                   <TableCell>

@@ -38,7 +38,7 @@ import { useTranslation } from 'react-i18next'
 import type { TFunction } from 'i18next'
 import type { Match, Team, Prediction } from '../shared/types'
 import { isTbdTeam } from '../hooks/matchGrouping'
-import { useTbdLabel } from './useTbdLabel'
+import { useTeamName } from '../i18n/useTeamName'
 import { useSavePrediction, toGoals } from '../hooks/useSavePrediction'
 import { useGroup } from '../group/useGroup'
 import { useTournamentConfig } from '../hooks/useTournamentConfig'
@@ -80,17 +80,10 @@ function stageLabel(match: Match, t: TFunction): string {
 }
 
 /** A team name — outer element on its side of the line; shrinks/ellipsizes to fit. */
-function TeamName({
-  team,
-  tbdLabel,
-  align,
-}: {
-  team: Team
-  tbdLabel: string
-  align: 'left' | 'right'
-}) {
+function TeamName({ team, align }: { team: Team; align: 'left' | 'right' }) {
+  const teamName = useTeamName()
   const tbd = isTbdTeam(team)
-  const name = tbd ? tbdLabel : team.name
+  const name = teamName(team)
   return (
     <Typography
       variant="body2"
@@ -116,12 +109,13 @@ function TeamName({
 }
 
 /** A team flag — sits inboard, next to the score/steppers. */
-function TeamFlag({ team, tbdLabel }: { team: Team; tbdLabel: string }) {
+function TeamFlag({ team }: { team: Team }) {
+  const teamName = useTeamName()
   const tbd = isTbdTeam(team)
   return (
     <Avatar
       src={!tbd && team.crest ? team.crest : undefined}
-      alt={tbd ? tbdLabel : team.name}
+      alt={teamName(team)}
       sx={{ width: 32, height: 32, flexShrink: 0, bgcolor: 'action.hover' }}
       slotProps={{ img: { loading: 'lazy' } }}
     >
@@ -185,7 +179,7 @@ function Stepper({
 
 export function FixtureCard({ gid, match, existing, now }: FixtureCardProps) {
   const { t } = useTranslation()
-  const tbdLabel = useTbdLabel()
+  const teamName = useTeamName()
   const { group } = useGroup()
   const { cutoffs } = useTournamentConfig()
   const { homeTeam, awayTeam, score, status, kickoff } = match
@@ -251,8 +245,8 @@ export function FixtureCard({ gid, match, existing, now }: FixtureCardProps) {
   return (
     <Card
       aria-label={t('match.versus', {
-        home: isTbdTeam(homeTeam) ? tbdLabel : homeTeam.name,
-        away: isTbdTeam(awayTeam) ? tbdLabel : awayTeam.name,
+        home: teamName(homeTeam),
+        away: teamName(awayTeam),
       })}
     >
       <CardContent sx={{ py: 2, textAlign: 'center', '&:last-child': { pb: 2 } }}>
@@ -286,8 +280,8 @@ export function FixtureCard({ gid, match, existing, now }: FixtureCardProps) {
                 justifyContent: { sm: 'flex-end' },
               }}
             >
-              <TeamName team={homeTeam} tbdLabel={tbdLabel} align="right" />
-              <TeamFlag team={homeTeam} tbdLabel={tbdLabel} />
+              <TeamName team={homeTeam} align="right" />
+              <TeamFlag team={homeTeam} />
             </Stack>
 
             <Box sx={{ flexShrink: 0, px: 0.5 }}>
@@ -351,8 +345,8 @@ export function FixtureCard({ gid, match, existing, now }: FixtureCardProps) {
                 justifyContent: { sm: 'flex-end' },
               }}
             >
-              <TeamName team={awayTeam} tbdLabel={tbdLabel} align="left" />
-              <TeamFlag team={awayTeam} tbdLabel={tbdLabel} />
+              <TeamName team={awayTeam} align="left" />
+              <TeamFlag team={awayTeam} />
             </Stack>
           </Stack>
 

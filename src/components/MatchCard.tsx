@@ -22,11 +22,10 @@ import type { ChipProps } from '@mui/material/Chip'
 import { useTranslation } from 'react-i18next'
 import type { TFunction } from 'i18next'
 import type { Match, MatchStatus } from '../shared/types'
-import { isTbdTeam } from '../hooks/matchGrouping'
 import { useServerTime } from '../hooks/useServerTime'
 import { MatchPredictionsDialog } from './MatchPredictionsDialog'
 import { MatchTeams } from './MatchTeams'
-import { useTbdLabel } from './useTbdLabel'
+import { useTeamName } from '../i18n/useTeamName'
 
 export interface MatchCardProps {
   match: Match
@@ -63,7 +62,7 @@ function statusChip(
 
 export function MatchCard({ match, gid }: MatchCardProps) {
   const { t } = useTranslation()
-  const tbdLabel = useTbdLabel()
+  const teamName = useTeamName()
   const { homeTeam, awayTeam, score, status, kickoff } = match
   const chip = statusChip(status, t)
   const played = score.home !== null && score.away !== null
@@ -96,8 +95,8 @@ export function MatchCard({ match, gid }: MatchCardProps) {
   return (
     <Card
       aria-label={t('match.versus', {
-        home: isTbdTeam(homeTeam) ? tbdLabel : homeTeam.name,
-        away: isTbdTeam(awayTeam) ? tbdLabel : awayTeam.name,
+        home: teamName(homeTeam),
+        away: teamName(awayTeam),
       })}
     >
       <CardContent sx={{ py: 1.5, '&:last-child': { pb: 1.5 } }}>

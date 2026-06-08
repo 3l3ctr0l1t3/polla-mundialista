@@ -31,6 +31,7 @@ import { useMatchPredictions } from '../hooks/useMatchPredictions'
 import { useGroupRoster } from '../hooks/useGroupRoster'
 import { LoadingState, ErrorState, EmptyState } from './states'
 import { useAuth } from '../auth/useAuth'
+import { useTeamName } from '../i18n/useTeamName'
 import type { Match } from '../shared/types'
 
 export interface MatchPredictionsDialogProps {
@@ -56,6 +57,7 @@ export function MatchPredictionsDialog({
   onClose,
 }: MatchPredictionsDialogProps) {
   const { t } = useTranslation()
+  const teamName = useTeamName()
   const { user } = useAuth()
   const { roster } = useGroupRoster(gid)
   // Only query once kicked off AND the dialog is open (avoids a needless listener).
@@ -72,8 +74,8 @@ export function MatchPredictionsDialog({
         {t('predictions.dialogTitle')}
         <Typography variant="body2" color="text.secondary">
           {t('predictions.matchVs', {
-            home: match.homeTeam.shortName,
-            away: match.awayTeam.shortName,
+            home: teamName(match.homeTeam),
+            away: teamName(match.awayTeam),
           })}
         </Typography>
         <IconButton

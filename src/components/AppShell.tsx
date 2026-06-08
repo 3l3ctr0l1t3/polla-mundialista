@@ -155,7 +155,10 @@ export function AppShell({ children, title, navItems, selectedKey, onNavigate }:
 
   return (
     <Box sx={{ minHeight: '100dvh' }}>
-      <AppBar position="fixed">
+      <AppBar
+        position="fixed"
+        sx={{ zIndex: (theme) => theme.zIndex.drawer + 1 }}
+      >
         <Toolbar>
           <SportsSoccerIcon sx={{ mr: 1 }} aria-hidden />
           <Typography variant="h6" component="h1" noWrap sx={{ flexGrow: 1 }}>
@@ -173,8 +176,8 @@ export function AppShell({ children, title, navItems, selectedKey, onNavigate }:
           sx={{
             flexGrow: 1,
             width: '100%',
-            // Offset for the fixed app bar.
-            pt: { xs: 8, sm: 8 },
+            // Offset for the fixed app bar + breathing room.
+            pt: { xs: 10, sm: 10 },
             px: { xs: 2, sm: 3 },
             pb: { xs: 10, sm: 3 }, // room for the bottom bar on mobile
           }}

@@ -14,7 +14,8 @@
     "lint": "eslint .",
     "format": "prettier --write .",
     "generate-pwa-assets": "pwa-assets-generator",
-    "verify:pwa": "node scripts/verify-pwa.mjs"
+    "verify:pwa": "node scripts/verify-pwa.mjs",
+    "generate-screenshots": "node scripts/gen-screenshots.mjs"
   },
   "dependencies": {
     "@emotion/react": "^11.14.0",

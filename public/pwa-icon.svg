@@ -1,0 +1,50 @@
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- La Pollita PWA source icon. Dark-neon brand: near-black square (#07090a)
+       with an electric-blue -> mint glow and a "P" monogram cradling a soccer
+       ball. Colors mirror src/theme/tokens.ts (blue #36b8ff, mint #46f5a0). -->
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="34%" r="75%">
+      <stop offset="0%" stop-color="#0d1314" />
+      <stop offset="58%" stop-color="#080a0b" />
+      <stop offset="100%" stop-color="#050606" />
+    </radialGradient>
+    <linearGradient id="neon" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#36b8ff" />
+      <stop offset="100%" stop-color="#46f5a0" />
+    </linearGradient>
+  </defs>
+
+  <rect width="512" height="512" fill="#07090a" />
+  <rect width="512" height="512" fill="url(#bg)" />
+
+  <!-- Monogram "P" -->
+  <path
+    d="M168 120
+       h118
+       a86 86 0 0 1 0 172
+       h-68
+       v100
+       h-50
+       z
+       m50 46
+       v80
+       h68
+       a40 40 0 0 0 0 -80
+       z"
+    fill="url(#neon)"
+  />
+
+  <!-- Soccer ball nested in the bowl of the P -->
+  <g transform="translate(286 206)">
+    <circle r="58" fill="#07090a" stroke="#46f5a0" stroke-width="6" />
+    <path
+      d="M0 -34 L30 -12 L19 24 L-19 24 L-30 -12 Z"
+      fill="#46f5a0"
+    />
+    <path d="M0 -34 L0 -56" stroke="#46f5a0" stroke-width="6" stroke-linecap="round" />
+    <path d="M30 -12 L52 -19" stroke="#46f5a0" stroke-width="6" stroke-linecap="round" />
+    <path d="M19 24 L33 45" stroke="#46f5a0" stroke-width="6" stroke-linecap="round" />
+    <path d="M-19 24 L-33 45" stroke="#46f5a0" stroke-width="6" stroke-linecap="round" />
+    <path d="M-30 -12 L-52 -19" stroke="#46f5a0" stroke-width="6" stroke-linecap="round" />
+  </g>
+</svg>

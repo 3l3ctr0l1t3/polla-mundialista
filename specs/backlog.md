@@ -21,12 +21,17 @@ Dependency order: 001 → 002 → 003 → (004, 006 parallel) → 005 → 007 �
 | 013 | Full roster + reveal predictions at kickoff | 🟨 | 012 | firestore-rules-engineer + react-mui-builder |
 | 014 | Superadmin oversight (god-view) | 🟨 | 012 | firestore-rules-engineer + react-mui-builder |
 | 015 | Admin removes a member | ✅ | 012 | firestore-rules-engineer + react-mui-builder |
+| 016 | Installable PWA (app shell offline) | ✅¹ | 009, 010 | react-mui-builder |
 
 > 012 restructures predictions/leaderboard/membership to be **per-group** (supersedes the single-pool
 > parts of 005/007/011); matches/standings/config stay global. Built in phases A–D (see 012/plan.md).
 
 ✅ = fully verified offline. 🟨 here = **code complete, all unit/rules tests green, committed** —
 awaiting the runtime credentials/toggles below to be verified end-to-end and promoted to ✅.
+
+¹ 016: all 7 automatable acceptance rules pass (manifest/SW/icons/autoUpdate/no-write-traffic + gates).
+AC4 (offline-shell reload) and AC7 (Lighthouse "Installable") are one-time **manual** checks to run in
+Chrome DevTools against the deployed HTTPS site after the next hosting deploy.
 
 ## Deployment
 - **Project:** `la-pollita-corp` (Firebase Spark) · **Live:** https://la-pollita-corp.web.app

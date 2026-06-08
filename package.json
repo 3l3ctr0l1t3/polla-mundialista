@@ -12,7 +12,9 @@
     "test:ingest": "vitest run --config scripts/ingest/vitest.config.ts",
     "ingest": "tsx scripts/ingest/index.ts",
     "lint": "eslint .",
-    "format": "prettier --write ."
+    "format": "prettier --write .",
+    "generate-pwa-assets": "pwa-assets-generator",
+    "verify:pwa": "node scripts/verify-pwa.mjs"
   },
   "dependencies": {
     "@emotion/react": "^11.14.0",
@@ -33,6 +35,7 @@
     "@types/node": "^24.12.3",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
+    "@vite-pwa/assets-generator": "^1.0.2",
     "@vitejs/plugin-react": "^5.2.0",
     "dotenv": "^17.4.2",
     "eslint": "^10.3.0",
@@ -47,6 +50,7 @@
     "typescript": "~6.0.2",
     "typescript-eslint": "^8.59.2",
     "vite": "^7.3.5",
+    "vite-plugin-pwa": "^1.3.0",
     "vitest": "^3.2.6"
   }
 }

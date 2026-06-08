@@ -1,56 +1,21 @@
 /**
- * CanvasPage — a design sandbox for the match component (superadmin / local-dev only).
+ * CanvasPage — a design sandbox for the fixture card (superadmin / local-dev only).
  *
- * NOT a user-facing feature: it renders the experimental MatchLabCard against sample data
- * (src/dev/sampleData.ts) so we can iterate on folding the prediction steppers into the
- * fixture card (the goal: retire the separate Predictions page). Nothing here writes to
- * Firestore. Mounted in GroupApp only when `isSuperAdmin || import.meta.env.DEV`.
+ * NOT a user-facing feature. It renders the upcoming/editable FixtureCard layout
+ * (FixtureCardPreview) once per score-input option so we can compare DIFFERENT ways to
+ * enter a predicted scoreline while the rest of the card stays identical. Nothing here
+ * writes to Firestore. Mounted in GroupApp only when `isSuperAdmin || import.meta.env.DEV`.
  */
 import Box from '@mui/material/Box'
 import Stack from '@mui/material/Stack'
 import Typography from '@mui/material/Typography'
 import Alert from '@mui/material/Alert'
-import Avatar from '@mui/material/Avatar'
-import Card from '@mui/material/Card'
-import CardContent from '@mui/material/CardContent'
-import {
-  sampleScheduledMatch,
-  sampleLiveMatch,
-  sampleFinishedMatch,
-  sampleTbdMatch,
-} from '../dev/sampleData'
+import { sampleScheduledMatch } from '../dev/sampleData'
 import { SCORE_INPUT_OPTIONS } from '../dev/scoreInputs'
-import { MatchCard } from '../components/MatchCard'
-import { MatchLabCard } from '../components/MatchLabCard'
+import { FixtureCardPreview } from '../dev/FixtureCardPreview'
 
-/** A flag avatar from a sample team crest, for the score-input options preview. */
-function Flag({ crest, name }: { crest: string; name: string }) {
-  return (
-    <Avatar
-      src={crest || undefined}
-      alt={name}
-      sx={{ width: 32, height: 32, flexShrink: 0, bgcolor: 'action.hover' }}
-    />
-  )
-}
-
-const SAMPLES = [
-  { label: 'Scheduled (predictable)', match: sampleScheduledMatch },
-  { label: 'Live', match: sampleLiveMatch, pick: { home: 1, away: 1 } },
-  { label: 'Finished', match: sampleFinishedMatch, pick: { home: 2, away: 1 } },
-  { label: 'Knockout TBD', match: sampleTbdMatch },
-]
-
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <Box component="section">
-      <Typography variant="overline" color="text.secondary" sx={{ display: 'block', mb: 1 }}>
-        {title}
-      </Typography>
-      <Stack spacing={1.5}>{children}</Stack>
-    </Box>
-  )
-}
+/** Phone-ish width so we judge how each input fits the real (mobile-first) card. */
+const PHONE_WIDTH = 400
 
 export function CanvasPage() {
   return (
@@ -59,66 +24,27 @@ export function CanvasPage() {
         Canvas
       </Typography>
       <Alert severity="info" sx={{ mb: 2 }}>
-        Design sandbox — sample data, nothing is saved. Superadmin / local-dev only.
+        Design sandbox — sample data, nothing is saved. Superadmin / local-dev only. Same fixture
+        card, different score-input options to compare.
       </Alert>
 
+      <Typography variant="overline" color="text.secondary" sx={{ display: 'block', mb: 1 }}>
+        Fixture card · score-input options (≈{PHONE_WIDTH}px / mobile)
+      </Typography>
+
       <Stack spacing={3}>
-        <Section title="Score input options — what goes between the flags">
-          {SCORE_INPUT_OPTIONS.map(({ id, label, Component }) => (
-            <Card key={id} variant="outlined" sx={{ borderRadius: 3 }}>
-              <CardContent sx={{ py: 1.5, '&:last-child': { pb: 1.5 } }}>
-                <Typography
-                  variant="caption"
-                  color="text.secondary"
-                  sx={{ display: 'block', mb: 1 }}
-                >
-                  {label}
-                </Typography>
-                <Stack
-                  direction="row"
-                  spacing={1.5}
-                  sx={{ alignItems: 'center', justifyContent: 'center' }}
-                >
-                  <Flag
-                    crest={sampleScheduledMatch.homeTeam.crest}
-                    name={sampleScheduledMatch.homeTeam.name}
-                  />
-                  <Component />
-                  <Flag
-                    crest={sampleScheduledMatch.awayTeam.crest}
-                    name={sampleScheduledMatch.awayTeam.name}
-                  />
-                </Stack>
-              </CardContent>
-            </Card>
-          ))}
-        </Section>
-
-        <Section title="MatchLabCard — centered (name · flag · prediction)">
-          {SAMPLES.map(({ label, match, pick }) => (
-            <Box key={`lab-${match.matchId}`}>
-              <Typography variant="caption" color="text.secondary">
-                {label}
-              </Typography>
-              <Box sx={{ mt: 0.5 }}>
-                <MatchLabCard match={match} prediction={pick} />
-              </Box>
+        {SCORE_INPUT_OPTIONS.map(({ id, label, Component }) => (
+          <Box key={id}>
+            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
+              {label}
+            </Typography>
+            <Box sx={{ maxWidth: PHONE_WIDTH }}>
+              <FixtureCardPreview match={sampleScheduledMatch}>
+                <Component />
+              </FixtureCardPreview>
             </Box>
-          ))}
-        </Section>
-
-        <Section title="Current MatchCard (for comparison)">
-          {SAMPLES.map(({ label, match }) => (
-            <Box key={`cur-${match.matchId}`}>
-              <Typography variant="caption" color="text.secondary">
-                {label}
-              </Typography>
-              <Box sx={{ mt: 0.5 }}>
-                <MatchCard match={match} />
-              </Box>
-            </Box>
-          ))}
-        </Section>
+          </Box>
+        ))}
       </Stack>
     </Box>
   )

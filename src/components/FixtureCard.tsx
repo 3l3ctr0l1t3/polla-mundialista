@@ -30,8 +30,8 @@ import Button from '@mui/material/Button'
 import IconButton from '@mui/material/IconButton'
 import Snackbar from '@mui/material/Snackbar'
 import Alert from '@mui/material/Alert'
-import AddIcon from '@mui/icons-material/Add'
-import RemoveIcon from '@mui/icons-material/Remove'
+import KeyboardArrowUpIcon from '@mui/icons-material/KeyboardArrowUp'
+import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown'
 import GroupsIcon from '@mui/icons-material/Groups'
 import SportsSoccerIcon from '@mui/icons-material/SportsSoccer'
 import { useTranslation } from 'react-i18next'
@@ -124,8 +124,8 @@ function TeamFlag({ team }: { team: Team }) {
   )
 }
 
-/** Compact centered goal stepper for the editable (upcoming) state. */
-function Stepper({
+/** Compact centered goal spinner (chevron-up · number · chevron-down) for the editable state. */
+function Spinner({
   value,
   disabled,
   onChange,
@@ -141,14 +141,14 @@ function Stepper({
   decreaseLabel: string
 }) {
   return (
-    <Stack direction="row" spacing={0.5} sx={{ alignItems: 'center', justifyContent: 'center' }}>
+    <Stack sx={{ alignItems: 'center', justifyContent: 'center' }}>
       <IconButton
         size="small"
-        disabled={disabled || value <= 0}
-        aria-label={decreaseLabel}
-        onClick={() => onChange(toGoals(value - 1))}
+        disabled={disabled}
+        aria-label={increaseLabel}
+        onClick={() => onChange(toGoals(value + 1))}
       >
-        <RemoveIcon fontSize="small" />
+        <KeyboardArrowUpIcon fontSize="small" />
       </IconButton>
       <Typography
         component="span"
@@ -167,11 +167,11 @@ function Stepper({
       </Typography>
       <IconButton
         size="small"
-        disabled={disabled}
-        aria-label={increaseLabel}
-        onClick={() => onChange(toGoals(value + 1))}
+        disabled={disabled || value <= 0}
+        aria-label={decreaseLabel}
+        onClick={() => onChange(toGoals(value - 1))}
       >
-        <AddIcon fontSize="small" />
+        <KeyboardArrowDownIcon fontSize="small" />
       </IconButton>
     </Stack>
   )
@@ -291,8 +291,8 @@ export function FixtureCard({ gid, match, existing, now }: FixtureCardProps) {
 
             <Box sx={{ flexShrink: 0, px: 0.5 }}>
               {editable ? (
-                <Stack direction="row" spacing={0.5} sx={{ alignItems: 'center' }}>
-                  <Stepper
+                <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
+                  <Spinner
                     value={homeGoals}
                     disabled={inputsDisabled}
                     onChange={setHomeGoals}
@@ -306,7 +306,7 @@ export function FixtureCard({ gid, match, existing, now }: FixtureCardProps) {
                   >
                     {t('predictions.vs')}
                   </Typography>
-                  <Stepper
+                  <Spinner
                     value={awayGoals}
                     disabled={inputsDisabled}
                     onChange={setAwayGoals}

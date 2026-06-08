@@ -102,7 +102,20 @@ export function FixturesPage() {
               >
                 {day.label}
               </Typography>
-              <Stack spacing={1.5}>
+              <Box
+                sx={{
+                  display: 'grid',
+                  gap: 1.5,
+                  // 1 card per row on mobile, filling out to 3–4 on wider screens.
+                  gridTemplateColumns: {
+                    xs: '1fr',
+                    sm: 'repeat(2, 1fr)',
+                    md: 'repeat(3, 1fr)',
+                    lg: 'repeat(4, 1fr)',
+                  },
+                  alignItems: 'start',
+                }}
+              >
                 {day.matches.map((m) => (
                   <FixtureCard
                     key={m.matchId}
@@ -112,7 +125,7 @@ export function FixturesPage() {
                     now={now}
                   />
                 ))}
-              </Stack>
+              </Box>
             </Box>
           ))}
         </Stack>

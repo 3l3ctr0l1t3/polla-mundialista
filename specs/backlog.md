@@ -20,6 +20,7 @@ Dependency order: 001 → 002 → 003 → (004, 006 parallel) → 005 → 007 �
 | 012 | Multiple groups (multi-tenant) | 🟨 | 011 | rules + react-mui + ingestion |
 | 013 | Full roster + reveal predictions at kickoff | 🟨 | 012 | firestore-rules-engineer + react-mui-builder |
 | 014 | Superadmin oversight (god-view) | 🟨 | 012 | firestore-rules-engineer + react-mui-builder |
+| 015 | Admin removes a member | ✅ | 012 | firestore-rules-engineer + react-mui-builder |
 
 > 012 restructures predictions/leaderboard/membership to be **per-group** (supersedes the single-pool
 > parts of 005/007/011); matches/standings/config stay global. Built in phases A–D (see 012/plan.md).

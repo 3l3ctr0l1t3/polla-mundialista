@@ -1,10 +1,11 @@
 import type { ReactNode } from 'react'
-import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/react'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { ThemeProvider } from '@mui/material/styles'
 import { theme } from '../theme/theme'
 import type { Member } from '../shared/types'
 import type { UsePendingMembersResult } from '../hooks/usePendingMembers'
+import type { UseApprovedMembersResult } from '../hooks/useApprovedMembers'
 
 // --- mocks -----------------------------------------------------------------
 
@@ -18,9 +19,14 @@ vi.mock('../hooks/usePendingMembers', () => ({
 }))
 let capturedGid: string | null = null
 
+const useApprovedMembersMock = vi.fn<() => UseApprovedMembersResult>()
+vi.mock('../hooks/useApprovedMembers', () => ({
+  useApprovedMembers: () => useApprovedMembersMock(),
+}))
+
 // The current group from the group context (this admin is the group's owner ⇒ admin).
 vi.mock('../group/useGroup', () => ({
-  useGroup: () => ({ gid: 'g1', isGroupAdmin: true }),
+  useGroup: () => ({ gid: 'g1', isGroupAdmin: true, group: { name: 'My Pool' } }),
 }))
 
 // Admin user from the auth context.
@@ -37,9 +43,11 @@ vi.mock('../firebase/db', () => ({
 }))
 
 const updateDocMock = vi.fn<(...args: unknown[]) => Promise<void>>(() => Promise.resolve())
+const deleteDocMock = vi.fn<(...args: unknown[]) => Promise<void>>(() => Promise.resolve())
 vi.mock('firebase/firestore', () => ({
   serverTimestamp: () => 'SERVER_TS',
   updateDoc: (...args: unknown[]) => updateDocMock(...args),
+  deleteDoc: (...args: unknown[]) => deleteDocMock(...args),
 }))
 
 // Imported after mocks are registered.
@@ -62,9 +70,26 @@ const pendingMember = (uid: string, name: string): Member =>
     decidedBy: null,
   }) as Member
 
+const approvedMember = (uid: string, name: string): Member =>
+  ({
+    uid,
+    displayName: name,
+    email: `${uid}@x.com`,
+    photoURL: null,
+    role: 'member',
+    status: 'approved',
+    requestedAt: { toMillis: () => 0 } as unknown as Member['requestedAt'],
+    decidedAt: null,
+    decidedBy: null,
+  }) as Member
+
 beforeEach(() => {
   usePendingMembersMock.mockReset()
+  useApprovedMembersMock.mockReset()
+  // Default: no approved members unless a test sets them.
+  useApprovedMembersMock.mockReturnValue({ members: [], loading: false, error: null })
   updateDocMock.mockClear()
+  deleteDocMock.mockClear()
   capturedGid = null
 })
 
@@ -141,5 +166,86 @@ describe('AdminPage (per-group)', () => {
       { __ref: 'member', gid: 'g1', uid: 'u2' },
       { status: 'rejected', decidedBy: 'admin1', decidedAt: 'SERVER_TS' },
     )
+  })
+})
+
+describe('AdminPage — remove member', () => {
+  // Keep the pending section empty/quiet for these tests.
+  const noPending = () =>
+    usePendingMembersMock.mockReturnValue({ members: [], loading: false, error: null })
+
+  it('renders a row per approved member, each with a Remove control', () => {
+    noPending()
+    useApprovedMembersMock.mockReturnValue({
+      members: [approvedMember('u1', 'Ana'), approvedMember('u2', 'Beto')],
+      loading: false,
+      error: null,
+    })
+    renderPage(<AdminPage />)
+    expect(screen.getByRole('button', { name: /remove ana/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /remove beto/i })).toBeInTheDocument()
+  })
+
+  it('clicking Remove opens the confirm dialog and does NOT delete', () => {
+    noPending()
+    useApprovedMembersMock.mockReturnValue({
+      members: [approvedMember('u1', 'Ana')],
+      loading: false,
+      error: null,
+    })
+    renderPage(<AdminPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: /remove ana/i }))
+
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+    expect(screen.getByText(/Remove Ana from My Pool\?/i)).toBeInTheDocument()
+    expect(deleteDocMock).not.toHaveBeenCalled()
+  })
+
+  it('cancelling the dialog performs no delete', () => {
+    noPending()
+    useApprovedMembersMock.mockReturnValue({
+      members: [approvedMember('u1', 'Ana')],
+      loading: false,
+      error: null,
+    })
+    renderPage(<AdminPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: /remove ana/i }))
+    fireEvent.click(screen.getByRole('button', { name: /cancel/i }))
+
+    expect(deleteDocMock).not.toHaveBeenCalled()
+  })
+
+  it('confirming deletes exactly the selected member doc', async () => {
+    noPending()
+    useApprovedMembersMock.mockReturnValue({
+      members: [approvedMember('u1', 'Ana'), approvedMember('u2', 'Beto')],
+      loading: false,
+      error: null,
+    })
+    renderPage(<AdminPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: /remove beto/i }))
+    // The dialog's confirm Remove button (not the row buttons).
+    const dialog = screen.getByRole('dialog')
+    fireEvent.click(within(dialog).getByRole('button', { name: /^remove$/i }))
+
+    await waitFor(() => expect(deleteDocMock).toHaveBeenCalledTimes(1))
+    expect(deleteDocMock).toHaveBeenCalledWith({ __ref: 'member', gid: 'g1', uid: 'u2' })
+  })
+
+  it('does NOT offer a Remove control for the current user', () => {
+    noPending()
+    useApprovedMembersMock.mockReturnValue({
+      // admin1 is the current user (auth mock) and is also an approved member here.
+      members: [approvedMember('admin1', 'Admin'), approvedMember('u2', 'Beto')],
+      loading: false,
+      error: null,
+    })
+    renderPage(<AdminPage />)
+
+    expect(screen.queryByRole('button', { name: /remove admin/i })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /remove beto/i })).toBeInTheDocument()
   })
 })

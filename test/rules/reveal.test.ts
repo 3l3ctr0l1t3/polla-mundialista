@@ -65,11 +65,7 @@ async function seedGroup(gid: string, ownerUid: string) {
   })
 }
 
-async function seedMember(
-  gid: string,
-  uid: string,
-  status: 'pending' | 'approved' | 'rejected',
-) {
+async function seedMember(gid: string, uid: string, status: 'pending' | 'approved' | 'rejected') {
   await env.withSecurityRulesDisabled(async (ctx) => {
     await setDoc(doc(ctx.firestore(), 'groups', gid, 'members', uid), {
       uid,
@@ -131,9 +127,7 @@ beforeEach(async () => {
 describe('reveal predictions at kickoff (ticket 013)', () => {
   it("denies a member reading another member's prediction BEFORE kickoff", async () => {
     const db = authedAs(env, ALICE, MEMBER_EMAIL)
-    await assertFails(
-      getDoc(doc(db, 'groups', GROUP_A, 'predictions', predId(OWNER_A, MATCH_ID))),
-    )
+    await assertFails(getDoc(doc(db, 'groups', GROUP_A, 'predictions', predId(OWNER_A, MATCH_ID))))
   })
 
   it("allows a member reading another member's prediction AFTER kickoff", async () => {
@@ -145,9 +139,7 @@ describe('reveal predictions at kickoff (ticket 013)', () => {
 
   it('allows a member reading their OWN prediction before kickoff', async () => {
     const db = authedAs(env, ALICE, MEMBER_EMAIL)
-    await assertSucceeds(
-      getDoc(doc(db, 'groups', GROUP_A, 'predictions', predId(ALICE, MATCH_ID))),
-    )
+    await assertSucceeds(getDoc(doc(db, 'groups', GROUP_A, 'predictions', predId(ALICE, MATCH_ID))))
   })
 
   it('allows a member reading their OWN prediction after kickoff', async () => {
@@ -159,9 +151,7 @@ describe('reveal predictions at kickoff (ticket 013)', () => {
 
   it("denies a non-member reading another's prediction BEFORE kickoff", async () => {
     const db = authedAs(env, BOB, OUTSIDER_EMAIL)
-    await assertFails(
-      getDoc(doc(db, 'groups', GROUP_A, 'predictions', predId(OWNER_A, MATCH_ID))),
-    )
+    await assertFails(getDoc(doc(db, 'groups', GROUP_A, 'predictions', predId(OWNER_A, MATCH_ID))))
   })
 
   it("denies a non-member reading another's prediction AFTER kickoff", async () => {
@@ -180,8 +170,6 @@ describe('reveal predictions at kickoff (ticket 013)', () => {
 
   it("the group owner is denied a member's prediction before kickoff", async () => {
     const db = authedAs(env, OWNER_A, MEMBER_EMAIL)
-    await assertFails(
-      getDoc(doc(db, 'groups', GROUP_A, 'predictions', predId(ALICE, MATCH_ID))),
-    )
+    await assertFails(getDoc(doc(db, 'groups', GROUP_A, 'predictions', predId(ALICE, MATCH_ID))))
   })
 })

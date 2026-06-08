@@ -20,14 +20,22 @@ import Button from '@mui/material/Button'
 import Avatar from '@mui/material/Avatar'
 import Snackbar from '@mui/material/Snackbar'
 import Alert from '@mui/material/Alert'
+import Dialog from '@mui/material/Dialog'
+import DialogTitle from '@mui/material/DialogTitle'
+import DialogContent from '@mui/material/DialogContent'
+import DialogContentText from '@mui/material/DialogContentText'
+import DialogActions from '@mui/material/DialogActions'
 import CheckIcon from '@mui/icons-material/Check'
 import CloseIcon from '@mui/icons-material/Close'
 import HowToRegIcon from '@mui/icons-material/HowToReg'
-import { serverTimestamp, updateDoc } from 'firebase/firestore'
+import PeopleIcon from '@mui/icons-material/People'
+import DeleteOutlineIcon from '@mui/icons-material/DeleteOutlineOutlined'
+import { deleteDoc, serverTimestamp, updateDoc } from 'firebase/firestore'
 import { groupMemberDoc } from '../firebase/db'
 import { useAuth } from '../auth/useAuth'
 import { useGroup } from '../group/useGroup'
 import { usePendingMembers } from '../hooks/usePendingMembers'
+import { useApprovedMembers } from '../hooks/useApprovedMembers'
 import { LoadingState, EmptyState, ErrorState } from '../components/states'
 import type { Member, MemberStatus } from '../shared/types'
 
@@ -91,11 +99,68 @@ function PendingRow({
   )
 }
 
+/** A single approved-member row with a destructive Remove action. */
+function MemberRow({
+  member,
+  busy,
+  onRemove,
+}: {
+  member: Member
+  busy: boolean
+  onRemove: (member: Member) => void
+}) {
+  return (
+    <Card variant="outlined" sx={{ borderRadius: 3 }}>
+      <CardContent>
+        <Stack
+          direction={{ xs: 'column', sm: 'row' }}
+          spacing={2}
+          sx={{ alignItems: { sm: 'center' }, justifyContent: 'space-between' }}
+        >
+          <Stack direction="row" spacing={2} sx={{ alignItems: 'center', minWidth: 0 }}>
+            <Avatar src={member.photoURL ?? undefined} alt="">
+              {member.displayName?.charAt(0).toUpperCase() || '?'}
+            </Avatar>
+            <Box sx={{ minWidth: 0 }}>
+              <Typography variant="subtitle1" noWrap>
+                {member.displayName || 'Unnamed'}
+              </Typography>
+              <Typography variant="body2" color="text.secondary" noWrap>
+                {member.email}
+              </Typography>
+            </Box>
+          </Stack>
+
+          <Stack direction="row" spacing={1} sx={{ flexShrink: 0 }}>
+            <Button
+              variant="outlined"
+              color="error"
+              startIcon={<DeleteOutlineIcon />}
+              disabled={busy}
+              onClick={() => onRemove(member)}
+              aria-label={`Remove ${member.displayName || member.email}`}
+            >
+              Remove
+            </Button>
+          </Stack>
+        </Stack>
+      </CardContent>
+    </Card>
+  )
+}
+
 export function AdminPage() {
   const { user } = useAuth()
-  const { gid } = useGroup()
+  const { gid, group } = useGroup()
   const { members, loading, error } = usePendingMembers(gid)
+  const {
+    members: approvedMembers,
+    loading: membersLoading,
+    error: membersError,
+  } = useApprovedMembers(gid)
   const [pendingUid, setPendingUid] = useState<string | null>(null)
+  const [toRemove, setToRemove] = useState<Member | null>(null)
+  const [removingUid, setRemovingUid] = useState<string | null>(null)
   const [snack, setSnack] = useState<string | null>(null)
 
   const handleDecide = async (
@@ -114,6 +179,19 @@ export function AdminPage() {
       setSnack('Could not save that decision. Please try again.')
     } finally {
       setPendingUid(null)
+    }
+  }
+
+  const handleConfirmRemove = async () => {
+    if (!toRemove) return
+    setRemovingUid(toRemove.uid)
+    try {
+      await deleteDoc(groupMemberDoc(gid, toRemove.uid))
+      setToRemove(null)
+    } catch {
+      setSnack('Could not remove that member. Please try again.')
+    } finally {
+      setRemovingUid(null)
     }
   }
 
@@ -148,6 +226,67 @@ export function AdminPage() {
           ))}
         </Stack>
       )}
+
+      <Stack direction="row" spacing={1} sx={{ alignItems: 'center', mt: 4, mb: 2 }}>
+        <PeopleIcon aria-hidden color="primary" />
+        <Typography variant="h5" component="h2">
+          Members
+        </Typography>
+      </Stack>
+
+      {membersLoading ? (
+        <LoadingState rows={3} label="Loading members" />
+      ) : membersError ? (
+        <ErrorState title="Couldn't load members" description={membersError.message} />
+      ) : approvedMembers.length === 0 ? (
+        <EmptyState
+          icon={<PeopleIcon fontSize="inherit" />}
+          title="No members yet."
+          description="Approved members show up here, where you can remove them from the group."
+        />
+      ) : (
+        <Stack spacing={1.5}>
+          {approvedMembers
+            .filter((m) => m.uid !== user?.uid)
+            .map((m) => (
+              <MemberRow
+                key={m.uid}
+                member={m}
+                busy={removingUid === m.uid}
+                onRemove={setToRemove}
+              />
+            ))}
+        </Stack>
+      )}
+
+      <Dialog
+        open={toRemove !== null}
+        onClose={() => (removingUid ? undefined : setToRemove(null))}
+        aria-labelledby="remove-member-title"
+      >
+        <DialogTitle id="remove-member-title">Remove member?</DialogTitle>
+        <DialogContent>
+          <DialogContentText>
+            {`Remove ${toRemove?.displayName || toRemove?.email || 'this member'} from ${
+              group?.name || 'this group'
+            }? Their predictions are kept but they drop off the leaderboard.`}
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setToRemove(null)} disabled={removingUid !== null}>
+            Cancel
+          </Button>
+          <Button
+            variant="contained"
+            color="error"
+            startIcon={<DeleteOutlineIcon />}
+            disabled={removingUid !== null}
+            onClick={handleConfirmRemove}
+          >
+            Remove
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       <Snackbar
         open={snack !== null}

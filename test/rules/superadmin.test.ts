@@ -135,9 +135,7 @@ describe('superadmin — read-only oversight across groups', () => {
 
   it("can read another user's prediction even BEFORE kickoff", async () => {
     const db = authedAs(env, SUPERADMIN, SUPER_EMAIL)
-    await assertSucceeds(
-      getDoc(doc(db, 'groups', GROUP_A, 'predictions', predId(ALICE, MATCH_ID))),
-    )
+    await assertSucceeds(getDoc(doc(db, 'groups', GROUP_A, 'predictions', predId(ALICE, MATCH_ID))))
   })
 })
 
@@ -161,9 +159,7 @@ describe('superadmin — non-superadmin non-member is denied', () => {
 
   it("denies reading another user's pre-kickoff prediction", async () => {
     const db = authedAs(env, OUTSIDER, OUTSIDER_EMAIL)
-    await assertFails(
-      getDoc(doc(db, 'groups', GROUP_A, 'predictions', predId(ALICE, MATCH_ID))),
-    )
+    await assertFails(getDoc(doc(db, 'groups', GROUP_A, 'predictions', predId(ALICE, MATCH_ID))))
   })
 
   it('denies a user whose users doc has isAdmin == false', async () => {

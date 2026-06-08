@@ -705,3 +705,39 @@ describe('groups — read scoping (members read their group only)', () => {
     await assertSucceeds(getDoc(doc(db, 'groups', GROUP_A, 'members', ALICE)))
   })
 })
+
+/* -------------------------- admin removes a member (ticket 015, AC 5-6) */
+// `allow delete: if isGroupAdmin(gid)` (firestore.rules ~line 237), where
+// isGroupAdmin(gid) = isOwner(gid) OR an approved member doc with role == 'admin'.
+// These cases lock in: owner can remove; a role:'admin' member can remove another;
+// a plain approved member cannot; a non-member stranger cannot. No rules change.
+
+describe('groups — admin removes a member (delete member doc)', () => {
+  beforeEach(async () => {
+    await seedGroup(GROUP_A, OWNER_A)
+    // ALICE is an ordinary approved member — the deletion target throughout.
+    await seedMember(GROUP_A, ALICE, 'member', 'approved')
+  })
+
+  it('the group OWNER can delete an approved member doc', async () => {
+    const owner = authedAs(env, OWNER_A, MEMBER_EMAIL)
+    await assertSucceeds(deleteDoc(doc(owner, 'groups', GROUP_A, 'members', ALICE)))
+  })
+
+  it("a role:'admin' approved member can delete ANOTHER member's doc", async () => {
+    await seedMember(GROUP_A, ADMIN_MEMBER, 'admin', 'approved')
+    const admin = authedAs(env, ADMIN_MEMBER, MEMBER_EMAIL)
+    await assertSucceeds(deleteDoc(doc(admin, 'groups', GROUP_A, 'members', ALICE)))
+  })
+
+  it("denies a plain approved member deleting another member's doc", async () => {
+    await seedMember(GROUP_A, BOB, 'member', 'approved')
+    const ordinary = authedAs(env, BOB, OUTSIDER_EMAIL)
+    await assertFails(deleteDoc(doc(ordinary, 'groups', GROUP_A, 'members', ALICE)))
+  })
+
+  it("denies a non-member stranger deleting a member's doc", async () => {
+    const stranger = authedAs(env, 'user-stranger', OUTSIDER_EMAIL)
+    await assertFails(deleteDoc(doc(stranger, 'groups', GROUP_A, 'members', ALICE)))
+  })
+})

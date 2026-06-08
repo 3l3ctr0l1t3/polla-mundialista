@@ -191,6 +191,7 @@ export function FixtureCard({ gid, match, existing, now }: FixtureCardProps) {
     setHomeGoals,
     setAwayGoals,
     locked,
+    dirty,
     saving,
     snack,
     dismissSnack,
@@ -312,7 +313,7 @@ export function FixtureCard({ gid, match, existing, now }: FixtureCardProps) {
               variant="contained"
               color="primary"
               size="small"
-              disabled={inputsDisabled}
+              disabled={inputsDisabled || !dirty}
               onClick={() => void save()}
             >
               {existing ? t('predictions.update') : t('predictions.save')}

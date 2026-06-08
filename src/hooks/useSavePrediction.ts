@@ -35,6 +35,8 @@ export interface UseSavePrediction {
   setAwayGoals: (n: number) => void
   /** True once `now() >= match.kickoff` (server-corrected). The rule is the real gate. */
   locked: boolean
+  /** True when there's no saved prediction yet, or the values differ from the saved one. */
+  dirty: boolean
   saving: boolean
   snack: SaveSnack | null
   dismissSnack: () => void
@@ -67,6 +69,13 @@ export function useSavePrediction(
   }, [existing?.homeGoals, existing?.awayGoals])
 
   const locked = now() >= match.kickoff.toMillis()
+
+  // Saveable only when there's a real change: no saved prediction yet (a first save —
+  // including a deliberate 0–0 — is allowed) or the values differ from what's saved.
+  const dirty =
+    !existing ||
+    toGoals(homeGoals) !== existing.homeGoals ||
+    toGoals(awayGoals) !== existing.awayGoals
 
   const dismissSnack = useCallback(() => setSnack(null), [])
 
@@ -106,6 +115,7 @@ export function useSavePrediction(
     setHomeGoals,
     setAwayGoals,
     locked,
+    dirty,
     saving,
     snack,
     dismissSnack,

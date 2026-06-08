@@ -113,6 +113,32 @@ describe('useSavePrediction', () => {
     expect(payload).toMatchObject({ uid: 'u1', matchId: 'm42', updatedAt: 'SERVER_TS' })
   })
 
+  it('dirty: true for a new prediction; false until an existing one is changed', () => {
+    // No saved prediction → always dirty (a first save, including 0–0, is allowed).
+    const fresh = renderHook(() => useSavePrediction('g1', makeMatch(), undefined, beforeKickoff))
+    expect(fresh.result.current.dirty).toBe(true)
+
+    // Existing prediction, untouched → not dirty (Save/Update should be disabled).
+    const existing: Prediction = {
+      uid: 'u1',
+      matchId: 'm42',
+      homeGoals: 2,
+      awayGoals: 1,
+      createdAt: { toMillis: () => 0 } as Prediction['createdAt'],
+      updatedAt: { toMillis: () => 0 } as Prediction['updatedAt'],
+    }
+    const { result } = renderHook(() =>
+      useSavePrediction('g1', makeMatch(), existing, beforeKickoff),
+    )
+    expect(result.current.dirty).toBe(false)
+
+    // Change a value → dirty; revert to the saved value → not dirty again.
+    act(() => result.current.setHomeGoals(3))
+    expect(result.current.dirty).toBe(true)
+    act(() => result.current.setHomeGoals(2))
+    expect(result.current.dirty).toBe(false)
+  })
+
   it('does not write when locked (at/after kickoff)', async () => {
     const { result } = renderHook(() =>
       useSavePrediction('g1', makeMatch(), undefined, afterKickoff),

@@ -28,7 +28,7 @@ import {
   type ParticipantProfile,
   type GradedPrediction,
 } from './buildLeaderboard.ts'
-import { scorePrediction, DEFAULT_SCORING, type ScoringConfig } from './scoring.ts'
+import { scorePrediction, mergeScoring, DEFAULT_SCORING, type ScoringConfig } from './scoring.ts'
 import { computeTournamentCutoffs } from './tournamentConfig.ts'
 import type { FdStandingsResponse } from './types.ts'
 
@@ -43,7 +43,7 @@ const WINDOW_END = Date.UTC(2026, 6, 19, 23, 59, 59) // 2026-07-19
  * Predictions store the version they were graded at; we skip re-grading when it
  * matches the current version (idempotent reruns) but re-grade when it differs.
  */
-const SCORING_VERSION = 1
+const SCORING_VERSION = 2
 
 function withinWindow(now: Date): boolean {
   const t = now.getTime()
@@ -68,7 +68,9 @@ async function upsertMatches(db: FirebaseFirestore.Firestore, matches: MatchDoc[
 interface GroupContext {
   groupId: string
   ownerUid: string
-  /** uid → displayName/photo for every participant (members + owner). */
+  /** The group's optional per-group scoring override (merged over the global base). */
+  scoringOverride?: Partial<ScoringConfig>
+  /** uid → displayName/photo/joinedAt for every participant (members + owner). */
   participants: ParticipantProfile[]
 }
 
@@ -80,14 +82,25 @@ interface GroupContext {
  * displayName/photo come from each member doc; for the implicit owner (and any
  * member doc missing a name) we fall back to the global users/{uid} profile,
  * then to the uid itself so a leaderboard row is never nameless.
+ *
+ * joinedAtMs is the leaderboard's final tie-break: each approved member's
+ * `requestedAt` (Timestamp → ms), and the group's `createdAt` for the implicit
+ * owner. A member doc without `requestedAt` falls back to the owner's join time
+ * (the group's `createdAt`) so the earliest-joiner ordering stays deterministic;
+ * if even `createdAt` is absent we use 0 (treated as "joined first").
  */
 async function resolveGroupContext(
   db: FirebaseFirestore.Firestore,
   groupDoc: FirebaseFirestore.QueryDocumentSnapshot,
 ): Promise<GroupContext> {
   const groupId = groupDoc.id
-  const group = groupDoc.data() as { ownerUid?: string }
+  const group = groupDoc.data() as {
+    ownerUid?: string
+    createdAt?: FirebaseFirestore.Timestamp
+    scoring?: Partial<ScoringConfig>
+  }
   const ownerUid = group.ownerUid ?? ''
+  const createdAtMs = group.createdAt ? group.createdAt.toMillis() : 0
 
   const membersSnap = await groupDoc.ref
     .collection('members')
@@ -96,19 +109,32 @@ async function resolveGroupContext(
 
   const byUid = new Map<string, ParticipantProfile>()
   for (const d of membersSnap.docs) {
-    const data = d.data() as { uid?: string; displayName?: string; photoURL?: string | null }
+    const data = d.data() as {
+      uid?: string
+      displayName?: string
+      photoURL?: string | null
+      requestedAt?: FirebaseFirestore.Timestamp
+    }
     const uid = data.uid ?? d.id
     byUid.set(uid, {
       uid,
       displayName: data.displayName ?? '',
       photoURL: data.photoURL ?? null,
+      // Member join time; if the doc predates requestedAt, fall back to the
+      // group's createdAt so the tie-break stays deterministic.
+      joinedAtMs: data.requestedAt ? data.requestedAt.toMillis() : createdAtMs,
     })
   }
 
   // The owner is an implicit approved admin — ensure a participant entry exists
-  // even though they carry no member doc.
+  // even though they carry no member doc. They joined at group creation.
   if (ownerUid && !byUid.has(ownerUid)) {
-    byUid.set(ownerUid, { uid: ownerUid, displayName: '', photoURL: null })
+    byUid.set(ownerUid, {
+      uid: ownerUid,
+      displayName: '',
+      photoURL: null,
+      joinedAtMs: createdAtMs,
+    })
   }
 
   // Backfill any missing displayName from the global users/{uid} profile.
@@ -124,7 +150,12 @@ async function resolveGroupContext(
     }),
   )
 
-  return { groupId, ownerUid, participants: [...byUid.values()] }
+  return {
+    groupId,
+    ownerUid,
+    scoringOverride: group.scoring,
+    participants: [...byUid.values()],
+  }
 }
 
 /**
@@ -136,7 +167,7 @@ async function resolveGroupContext(
 async function gradeGroupPredictions(
   db: FirebaseFirestore.Firestore,
   ctx: GroupContext,
-  finished: Map<string, { home: number; away: number }>,
+  finished: Map<string, { home: number; away: number; stage: string }>,
   cfg: ScoringConfig,
 ): Promise<number> {
   const participantUids = new Set(ctx.participants.map((p) => p.uid))
@@ -169,6 +200,7 @@ async function gradeGroupPredictions(
       { home: p.homeGoals, away: p.awayGoals },
       actual,
       cfg,
+      actual.stage,
     )
     writes.push({
       ref: doc.ref,
@@ -212,7 +244,14 @@ async function rebuildGroupLeaderboard(
   const stale = existingSnap.docs.filter((d) => !keep.has(d.id))
 
   await commitInBatches(db, rows, (batch, row) => {
-    batch.set(board.doc(row.uid), { ...row, updatedAt }, { merge: false })
+    // Persist joinedAt as a Firestore Timestamp on the LeaderboardEntry; the raw
+    // joinedAtMs (a sort key for buildLeaderboard) is not stored on the doc.
+    const { joinedAtMs, ...rest } = row
+    batch.set(
+      board.doc(row.uid),
+      { ...rest, joinedAt: Timestamp.fromMillis(joinedAtMs), updatedAt },
+      { merge: false },
+    )
   })
   await commitInBatches(db, stale, (batch, d) => {
     batch.delete(d.ref)
@@ -348,14 +387,17 @@ async function main(): Promise<void> {
   }
 
   // FINISHED full-time results, keyed by matchId — shared across all groups.
-  const finished = new Map<string, { home: number; away: number }>()
+  // The `stage` rides along so per-group round bonuses can be applied at grading.
+  const finished = new Map<string, { home: number; away: number; stage: string }>()
   for (const m of matches) {
     if (m.status !== 'FINISHED') continue
     if (m.score.home == null || m.score.away == null) continue
-    finished.set(m.matchId, { home: m.score.home, away: m.score.away })
+    finished.set(m.matchId, { home: m.score.home, away: m.score.away, stage: m.stage })
   }
 
-  const cfg = await loadScoringConfig(db)
+  // GLOBAL base config (config/scoring ∪ DEFAULT_SCORING). Each group's effective
+  // config is this base with the group's optional `scoring` override merged on top.
+  const globalBase = await loadScoringConfig(db)
 
   // Per-group grading + leaderboard (multi-tenant — ticket 012).
   const groupsSnap = await db.collection('groups').get()
@@ -363,7 +405,8 @@ async function main(): Promise<void> {
   let totalBoardRows = 0
   for (const groupDoc of groupsSnap.docs) {
     const ctx = await resolveGroupContext(db, groupDoc)
-    const graded = await gradeGroupPredictions(db, ctx, finished, cfg)
+    const effective = mergeScoring(globalBase, ctx.scoringOverride)
+    const graded = await gradeGroupPredictions(db, ctx, finished, effective)
     const rows = await rebuildGroupLeaderboard(db, ctx)
     totalGraded += graded
     totalBoardRows += rows

@@ -6,8 +6,8 @@
 // unit-testable offline. The orchestrator calls this once per `groups/{gid}`.
 //
 // Tiebreakers (in order): totalPoints DESC → exactCount DESC → outcomeCount DESC
-// → displayName ASC (case-insensitive, stable). Ranking is DENSE: equal rows
-// share a rank and the next distinct row increments by one (1,1,2 — not 1,1,3).
+// → joinedAtMs ASC (earliest participant first, stable). Ranking is DENSE: equal
+// rows share a rank and the next distinct row increments by one (1,1,2 — not 1,1,3).
 
 import type { ScoreBreakdown } from '../../src/shared/scoring.ts'
 
@@ -28,6 +28,8 @@ export interface ParticipantProfile {
   uid: string
   displayName: string
   photoURL?: string | null
+  /** When this participant joined (ms since epoch) — final leaderboard tie-break. */
+  joinedAtMs: number
 }
 
 /** A computed leaderboard row (mirrors `LeaderboardEntry`, minus `updatedAt`). */
@@ -40,6 +42,8 @@ export interface LeaderboardRow {
   outcomeCount: number
   predictionsGraded: number
   rank: number
+  /** When this participant joined (ms since epoch) — final tie-break key. */
+  joinedAtMs: number
 }
 
 function isGraded(p: GradedPrediction): boolean {
@@ -70,6 +74,7 @@ export function buildLeaderboard(
       outcomeCount: 0,
       predictionsGraded: 0,
       rank: 0,
+      joinedAtMs: u.joinedAtMs,
     })
   }
 
@@ -113,7 +118,6 @@ function compareRows(a: LeaderboardRow, b: LeaderboardRow): number {
   if (b.totalPoints !== a.totalPoints) return b.totalPoints - a.totalPoints
   if (b.exactCount !== a.exactCount) return b.exactCount - a.exactCount
   if (b.outcomeCount !== a.outcomeCount) return b.outcomeCount - a.outcomeCount
-  return a.displayName.localeCompare(b.displayName, undefined, {
-    sensitivity: 'base',
-  })
+  // Final tie-break: earliest joiner first.
+  return a.joinedAtMs - b.joinedAtMs
 }

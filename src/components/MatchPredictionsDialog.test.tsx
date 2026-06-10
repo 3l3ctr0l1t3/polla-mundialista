@@ -42,6 +42,7 @@ function rosterEntry(uid: string, displayName: string): RosterEntry {
     rank: 1,
     isTie: false,
     isOwner: false,
+    joinedAtMs: 0,
   }
 }
 

@@ -57,6 +57,14 @@ export interface Group {
    * (`config/tournament.firstCupMatchKickoff − 10min`); see `firestore.rules`.
    */
   mode?: PredictionMode
+  /**
+   * Per-group scoring override (ticket 025). **Absent ⇒ `DEFAULT_SCORING`** — the
+   * group's *effective* config is this object merged over the defaults (see
+   * `effectiveScoring` in `src/shared/scoring.ts`). Editable by the group owner/admin
+   * only until the same freeze instant as `mode`
+   * (`config/tournament.firstCupMatchKickoff − 10min`); see `firestore.rules`.
+   */
+  scoring?: ScoringConfig
 }
 
 /**
@@ -217,6 +225,13 @@ export interface LeaderboardEntry {
   outcomeCount: number
   predictionsGraded: number
   rank: number
+  /**
+   * When this participant joined the group (ticket 025) — the final leaderboard
+   * tie-break key (earliest join wins). For a member it is their `requestedAt`; for
+   * the implicit owner it is the group's `createdAt`. Written by the ingestion
+   * aggregation so server + client rank identically.
+   */
+  joinedAt: Timestamp
   updatedAt: Timestamp
 }
 

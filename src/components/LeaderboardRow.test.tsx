@@ -19,6 +19,7 @@ function makeEntry(overrides: Partial<LeaderboardEntry> = {}): LeaderboardEntry 
     outcomeCount: 5,
     predictionsGraded: 9,
     rank: 1,
+    joinedAt: fakeTs,
     updatedAt: fakeTs,
     ...overrides,
   }

@@ -38,7 +38,10 @@ vi.mock('firebase/firestore', () => ({
 
 import { SuperadminPage } from './SuperadminPage'
 
-const fakeTs = {} as Group['createdAt']
+const fakeTs = {
+  toMillis: () => 0,
+  toDate: () => new Date(0),
+} as unknown as Group['createdAt']
 
 function makeGroup(overrides: Partial<Group> = {}): Group {
   return {
@@ -82,6 +85,7 @@ function pointsDoc(uid: string): { id: string; data: () => LeaderboardEntry } {
       outcomeCount: 2,
       predictionsGraded: 3,
       rank: 1,
+      joinedAt: fakeTs,
       updatedAt: fakeTs,
     }),
   }

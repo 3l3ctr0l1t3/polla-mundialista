@@ -180,12 +180,27 @@ service cloud.firestore {
       allow create: if isSignedIn()
         && request.resource.data.ownerUid == request.auth.uid;
 
-      // Owner may update any non-mode field freely, and may change `mode` before the freeze.
-      // A non-owner GROUP ADMIN may change ONLY `mode`, and only before the freeze. Any mode
-      // change is denied at/after firstCupMatchKickoff − 10min (mode immutability, ticket 019).
+      // Owner may update group fields, but `mode` and `scoring` are GATED (ticket 019/025):
+      //   - a `mode` change is allowed only before the freeze (modeChangeable());
+      //   - a `scoring` change is allowed only before the freeze AND only with a valid shape
+      //     (validScoring) — closing the old "owner may write any non-mode field freely"
+      //     loophole so `scoring` is validated + frozen, not free.
+      // A non-owner GROUP ADMIN may change ONLY `mode` and/or `scoring` (nothing else), and
+      // only before the freeze; a `scoring` change must also be a valid shape. Any mode/scoring
+      // change is denied at/after firstCupMatchKickoff − 10min (immutability, ticket 019/025).
       allow update: if
-        (isOwner(gid) && (!modeChanged() || modeChangeable()))
-        || (!isOwner(gid) && isGroupAdmin(gid) && modeChanged() && modeChangeable() && onlyModeFieldChanged());
+        (
+          isOwner(gid)
+          && (!modeChanged() || modeChangeable())
+          && (!scoringChanged() || (modeChangeable() && validScoring(request.resource.data.scoring)))
+        )
+        || (
+          !isOwner(gid) && isGroupAdmin(gid)
+          && onlyModeOrScoringChanged()
+          && (modeChanged() || scoringChanged())
+          && modeChangeable()
+          && (!scoringChanged() || validScoring(request.resource.data.scoring))
+        );
       allow delete: if isOwner(gid);
 
       // ---- groups/{gid}/members ---------------------------------------------
@@ -379,6 +394,54 @@ service cloud.firestore {
     // True iff the ONLY field this update touches is `mode` (used to confine non-owner admins).
     function onlyModeFieldChanged() {
       return request.resource.data.diff(resource.data).affectedKeys().hasOnly(['mode']);
+    }
+
+    // ---- group-scoring write gating (ticket 025) ----------------------------
+    // The per-group `scoring` config (mirrors `mode`): an admin-managed group setting,
+    // editable until the SAME freeze instant as `mode` (modeChangeable() =
+    // firstCupMatchKickoff − 10min) and frozen thereafter. The admin editor always writes
+    // the COMPLETE object, so the rule validates one fixed shape. No new get(): both the
+    // freeze (modeChangeable, via tournamentCfg) and the diff/shape checks reuse docs the
+    // group update already loads — no extra read beyond what `mode` gating already paid.
+
+    // True iff this update changes the group's `scoring` field (absent treated as null).
+    // Any difference (added, removed, or mutated) counts. Cheap: a single map compare.
+    function scoringChanged() {
+      return resource.data.get('scoring', null) != request.resource.data.get('scoring', null);
+    }
+
+    // True iff `s` is a well-formed scoring config: exactly the expected top-level keys,
+    // base tiers (exact/outcome/goalDiffBonus) non-negative integers, a bool gating flag,
+    // gradeOn pinned to 'fullTime90', and a roundBonus map with EXACTLY the 7 stage keys,
+    // each a non-negative integer. `is int` rejects floats (e.g. 1.5).
+    function validScoringRoundBonus(rb) {
+      return rb is map
+        && rb.keys().hasOnly(['GROUP_STAGE', 'LAST_32', 'LAST_16', 'QUARTER_FINALS', 'SEMI_FINALS', 'FINAL', 'THIRD_PLACE'])
+        && rb.keys().hasAll(['GROUP_STAGE', 'LAST_32', 'LAST_16', 'QUARTER_FINALS', 'SEMI_FINALS', 'FINAL', 'THIRD_PLACE'])
+        && rb.GROUP_STAGE is int && rb.GROUP_STAGE >= 0
+        && rb.LAST_32 is int && rb.LAST_32 >= 0
+        && rb.LAST_16 is int && rb.LAST_16 >= 0
+        && rb.QUARTER_FINALS is int && rb.QUARTER_FINALS >= 0
+        && rb.SEMI_FINALS is int && rb.SEMI_FINALS >= 0
+        && rb.FINAL is int && rb.FINAL >= 0
+        && rb.THIRD_PLACE is int && rb.THIRD_PLACE >= 0;
+    }
+
+    function validScoring(s) {
+      return s is map
+        && s.keys().hasOnly(['exact', 'outcome', 'goalDiffBonus', 'goalDiffOnlyOnCorrectOutcome', 'gradeOn', 'roundBonus'])
+        && s.keys().hasAll(['exact', 'outcome', 'goalDiffBonus', 'goalDiffOnlyOnCorrectOutcome', 'gradeOn', 'roundBonus'])
+        && s.exact is int && s.exact >= 0
+        && s.outcome is int && s.outcome >= 0
+        && s.goalDiffBonus is int && s.goalDiffBonus >= 0
+        && s.goalDiffOnlyOnCorrectOutcome is bool
+        && s.gradeOn == 'fullTime90'
+        && validScoringRoundBonus(s.roundBonus);
+    }
+
+    // True iff this update touches ONLY `mode` and/or `scoring` (confines non-owner admins).
+    function onlyModeOrScoringChanged() {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(['mode', 'scoring']);
     }
   }
 }

@@ -37,6 +37,8 @@ interface SampleMember {
   photoURL?: string | null
   role: string
   status: string
+  /** Optional join time (ms); mirrors a member doc's `requestedAt.toMillis()`. */
+  requestedAtMs?: number
 }
 interface SamplePrediction {
   uid: string
@@ -49,6 +51,8 @@ interface SampleGroup {
   ownerUid: string
   members: SampleMember[]
   predictions: SamplePrediction[]
+  /** Optional group creation time (ms); mirrors `createdAt.toMillis()` (owner join). */
+  createdAtMs?: number
 }
 const groupsSample = JSON.parse(readFileSync(resolve(__dirname, 'sample/groups.json'), 'utf8')) as {
   groups: SampleGroup[]

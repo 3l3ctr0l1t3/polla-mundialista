@@ -30,6 +30,7 @@ Dependency order: 001 → 002 → 003 → (004, 006 parallel) → 005 → 007 �
 | 022 | Match reminders + results/points + leaderboard moves (cron sender) | 🟦 | 021 | ingestion-engineer + react-mui-builder |
 | 023 | Group-activity notifications (outbox) | 🟦 | 021 | firestore-rules-engineer + ingestion-engineer |
 | 024 | Fixture card: stack team name above flag on all breakpoints (+ Canvas cleanup) | ✅ | 018 | react-mui-builder |
+| 025 | Per-group, admin-configurable scoring: round bonuses, tie-breakers, and an in-app explainer | ✅ | 006, 007, 012, 019 | ingestion-engineer + react-mui-builder + firestore-rules-engineer |
 
 > 012 restructures predictions/leaderboard/membership to be **per-group** (supersedes the single-pool
 > parts of 005/007/011); matches/standings/config stay global. Built in phases A–D (see 012/plan.md).

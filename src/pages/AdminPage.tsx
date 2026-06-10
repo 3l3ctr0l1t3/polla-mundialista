@@ -10,7 +10,7 @@
  * non-admins never mount this page; the security rules remain the real authority. A
  * rejected write surfaces in the snackbar.
  */
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Box from '@mui/material/Box'
 import Stack from '@mui/material/Stack'
 import Typography from '@mui/material/Typography'
@@ -27,6 +27,10 @@ import DialogContentText from '@mui/material/DialogContentText'
 import DialogActions from '@mui/material/DialogActions'
 import ToggleButton from '@mui/material/ToggleButton'
 import ToggleButtonGroup from '@mui/material/ToggleButtonGroup'
+import TextField from '@mui/material/TextField'
+import Divider from '@mui/material/Divider'
+import FormControlLabel from '@mui/material/FormControlLabel'
+import Switch from '@mui/material/Switch'
 import CheckIcon from '@mui/icons-material/Check'
 import CloseIcon from '@mui/icons-material/Close'
 import HowToRegIcon from '@mui/icons-material/HowToReg'
@@ -44,8 +48,10 @@ import { useTournamentConfig } from '../hooks/useTournamentConfig'
 import { usePendingMembers } from '../hooks/usePendingMembers'
 import { useApprovedMembers } from '../hooks/useApprovedMembers'
 import { effectiveMode, LOCK_BUFFER_MS } from '../shared/predictionLock'
+import { effectiveScoring } from '../shared/scoring'
+import type { ScoringConfig } from '../shared/scoring'
 import { LoadingState, EmptyState, ErrorState } from '../components/states'
-import type { Member, MemberStatus, PredictionMode } from '../shared/types'
+import type { Group, Member, MemberStatus, PredictionMode } from '../shared/types'
 
 /** A single pending-request row with Approve / Reject actions. */
 function PendingRow({
@@ -159,6 +165,165 @@ function MemberRow({
   )
 }
 
+/** The seven scoring stages + their localized label key, in display order. */
+const SCORING_STAGES: { stage: string; labelKey: string }[] = [
+  { stage: 'GROUP_STAGE', labelKey: 'scoring.stageGroup' },
+  { stage: 'LAST_32', labelKey: 'scoring.stageRoundOf32' },
+  { stage: 'LAST_16', labelKey: 'scoring.stageRoundOf16' },
+  { stage: 'QUARTER_FINALS', labelKey: 'scoring.stageQuarterFinals' },
+  { stage: 'SEMI_FINALS', labelKey: 'scoring.stageSemiFinals' },
+  { stage: 'THIRD_PLACE', labelKey: 'scoring.stageThirdPlace' },
+  { stage: 'FINAL', labelKey: 'scoring.stageFinal' },
+]
+
+/** Coerce any input to a non-negative integer (the rules reject floats/negatives). */
+const toNonNegInt = (v: string | number): number => {
+  const n = Math.floor(Number(v))
+  return Number.isFinite(n) && n >= 0 ? n : 0
+}
+
+/**
+ * ScoringSection — the admin-only per-group scoring editor (ticket 025).
+ *
+ * Prefilled from the group's EFFECTIVE config (`effectiveScoring` = the group's
+ * optional override merged over the engine defaults). Saving writes the COMPLETE
+ * config object to `groups/{gid}.scoring` (the shape `firestore.rules` validates).
+ * Disabled once `frozen` (the same first-kickoff freeze the prediction mode uses).
+ */
+function ScoringSection({
+  gid,
+  group,
+  frozen,
+  onError,
+}: {
+  gid: string
+  group: Group | null
+  frozen: boolean
+  onError: (msg: string) => void
+}) {
+  const { t } = useTranslation()
+  const [cfg, setCfg] = useState<ScoringConfig>(() => effectiveScoring(group ?? {}))
+  const [saving, setSaving] = useState(false)
+
+  // Re-sync the form when the group's scoring loads/changes.
+  useEffect(() => {
+    setCfg(effectiveScoring(group ?? {}))
+  }, [group])
+
+  const disabled = frozen || saving
+
+  const setBase = (key: 'exact' | 'outcome' | 'goalDiffBonus', v: string) =>
+    setCfg((c) => ({ ...c, [key]: toNonNegInt(v) }))
+  const setBonus = (stage: string, v: string) =>
+    setCfg((c) => ({ ...c, roundBonus: { ...c.roundBonus, [stage]: toNonNegInt(v) } }))
+
+  const handleSave = async () => {
+    if (frozen) return
+    setSaving(true)
+    try {
+      const payload: ScoringConfig = {
+        exact: toNonNegInt(cfg.exact),
+        outcome: toNonNegInt(cfg.outcome),
+        goalDiffBonus: toNonNegInt(cfg.goalDiffBonus),
+        goalDiffOnlyOnCorrectOutcome: cfg.goalDiffOnlyOnCorrectOutcome,
+        gradeOn: 'fullTime90',
+        roundBonus: SCORING_STAGES.reduce<Record<string, number>>(
+          (acc, { stage }) => ({ ...acc, [stage]: toNonNegInt(cfg.roundBonus[stage] ?? 0) }),
+          {},
+        ),
+      }
+      await updateDoc(groupDoc(gid), { scoring: payload })
+    } catch {
+      onError(t('admin.scoringError'))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const numField = (label: string, value: number, onChange: (v: string) => void) => (
+    <TextField
+      type="number"
+      label={label}
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      disabled={disabled}
+      size="small"
+      slotProps={{ htmlInput: { min: 0, step: 1, 'aria-label': label } }}
+      sx={{ width: 150 }}
+    />
+  )
+
+  return (
+    <Box sx={{ mt: 4 }}>
+      <Stack direction="row" spacing={1} sx={{ alignItems: 'center', mb: 1 }}>
+        <TuneIcon aria-hidden color="primary" />
+        <Typography variant="h5" component="h2">
+          {t('admin.scoringTitle')}
+        </Typography>
+      </Stack>
+      <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+        {t('admin.scoringDescription')}
+      </Typography>
+
+      <Typography variant="subtitle2" sx={{ mb: 1 }}>
+        {t('admin.scoringBaseTitle')}
+      </Typography>
+      <Stack direction="row" spacing={2} useFlexGap sx={{ flexWrap: 'wrap', mb: 1.5 }}>
+        {numField(t('admin.scoringExact'), cfg.exact, (v) => setBase('exact', v))}
+        {numField(t('admin.scoringOutcome'), cfg.outcome, (v) => setBase('outcome', v))}
+        {numField(t('admin.scoringGoalDiffBonus'), cfg.goalDiffBonus, (v) =>
+          setBase('goalDiffBonus', v),
+        )}
+      </Stack>
+      <FormControlLabel
+        control={
+          <Switch
+            checked={cfg.goalDiffOnlyOnCorrectOutcome}
+            disabled={disabled}
+            onChange={(e) =>
+              setCfg((c) => ({ ...c, goalDiffOnlyOnCorrectOutcome: e.target.checked }))
+            }
+          />
+        }
+        label={t('admin.scoringGoalDiffOnly')}
+      />
+
+      <Divider sx={{ my: 2 }} />
+
+      <Typography variant="subtitle2" sx={{ mb: 0.5 }}>
+        {t('admin.scoringRoundTitle')}
+      </Typography>
+      <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
+        {t('admin.scoringRoundDescription')}
+      </Typography>
+      <Stack direction="row" spacing={2} useFlexGap sx={{ flexWrap: 'wrap', mb: 2 }}>
+        {SCORING_STAGES.map(({ stage, labelKey }) => (
+          <Box key={stage}>
+            {numField(t(labelKey), cfg.roundBonus[stage] ?? 0, (v) => setBonus(stage, v))}
+          </Box>
+        ))}
+      </Stack>
+
+      <Button
+        variant="contained"
+        color="primary"
+        onClick={() => void handleSave()}
+        disabled={disabled}
+      >
+        {t('admin.scoringSave')}
+      </Button>
+      {frozen && (
+        <Stack direction="row" spacing={0.5} sx={{ alignItems: 'center', mt: 1 }}>
+          <LockIcon fontSize="inherit" color="action" aria-hidden />
+          <Typography variant="caption" color="text.secondary">
+            {t('admin.scoringFrozen')}
+          </Typography>
+        </Stack>
+      )}
+    </Box>
+  )
+}
+
 export function AdminPage() {
   const { t } = useTranslation()
   const { user } = useAuth()
@@ -262,6 +427,8 @@ export function AdminPage() {
           </Typography>
         </Stack>
       )}
+
+      <ScoringSection gid={gid} group={group ?? null} frozen={frozen} onError={setSnack} />
 
       <Stack direction="row" spacing={1} sx={{ alignItems: 'center', mt: 4, mb: 2 }}>
         <HowToRegIcon aria-hidden color="primary" />

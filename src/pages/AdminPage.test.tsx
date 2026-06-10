@@ -4,6 +4,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { ThemeProvider } from '@mui/material/styles'
 import { theme } from '../theme/theme'
 import type { Member } from '../shared/types'
+import type { ScoringConfig } from '../shared/scoring'
 import type { UsePendingMembersResult } from '../hooks/usePendingMembers'
 import type { UseApprovedMembersResult } from '../hooks/useApprovedMembers'
 
@@ -335,5 +336,73 @@ describe('AdminPage — prediction mode', () => {
     renderPage(<AdminPage />)
     expect(screen.getByRole('button', { name: 'Lazy' })).not.toBeDisabled()
     expect(screen.getByRole('button', { name: 'Strict' })).not.toBeDisabled()
+  })
+})
+
+describe('AdminPage — scoring editor', () => {
+  beforeEach(() => {
+    usePendingMembersMock.mockReturnValue({ members: [], loading: false, error: null })
+  })
+
+  it('prefills the fields from the group effective config (defaults when unset)', () => {
+    renderPage(<AdminPage />)
+    expect(screen.getByRole('spinbutton', { name: 'Exact score' })).toHaveValue(5)
+    expect(screen.getByRole('spinbutton', { name: 'Correct result' })).toHaveValue(3)
+    expect(screen.getByRole('spinbutton', { name: 'Goal-difference bonus' })).toHaveValue(1)
+    // Default round bonuses: Round of 16 +1, Final +4.
+    expect(screen.getByRole('spinbutton', { name: 'Round of 16' })).toHaveValue(1)
+    expect(screen.getByRole('spinbutton', { name: 'Final' })).toHaveValue(4)
+  })
+
+  it('Save writes the COMPLETE scoring config to groupDoc(gid)', async () => {
+    renderPage(<AdminPage />)
+    fireEvent.click(screen.getByRole('button', { name: 'Save scoring' }))
+
+    await waitFor(() => expect(updateDocMock).toHaveBeenCalledTimes(1))
+    expect(updateDocMock).toHaveBeenCalledWith(
+      { __ref: 'group', gid: 'g1' },
+      {
+        scoring: {
+          exact: 5,
+          outcome: 3,
+          goalDiffBonus: 1,
+          goalDiffOnlyOnCorrectOutcome: true,
+          gradeOn: 'fullTime90',
+          roundBonus: {
+            GROUP_STAGE: 0,
+            LAST_32: 0,
+            LAST_16: 1,
+            QUARTER_FINALS: 2,
+            SEMI_FINALS: 3,
+            THIRD_PLACE: 3,
+            FINAL: 4,
+          },
+        },
+      },
+    )
+  })
+
+  it('persists an edited value in the saved payload', async () => {
+    renderPage(<AdminPage />)
+    fireEvent.change(screen.getByRole('spinbutton', { name: 'Final' }), {
+      target: { value: '10' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Save scoring' }))
+
+    await waitFor(() => expect(updateDocMock).toHaveBeenCalledTimes(1))
+    const [, payload] = updateDocMock.mock.calls[0] as [unknown, { scoring: ScoringConfig }]
+    expect(payload.scoring.roundBonus.FINAL).toBe(10)
+  })
+
+  it('disables the editor + Save once past the freeze instant', () => {
+    useTournamentConfigMock.mockReturnValue({
+      cutoffs: { firstCupMatchKickoffMs: 1000, firstKnockoutKickoffMs: 2000 },
+      loading: false,
+    })
+    nowMock.mockReturnValue(10 * 60 * 1000) // well past firstCupMatchKickoff − 10min
+    renderPage(<AdminPage />)
+    expect(screen.getByRole('spinbutton', { name: 'Exact score' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Save scoring' })).toBeDisabled()
+    expect(screen.getByText(/the scoring rules can no longer be changed/i)).toBeInTheDocument()
   })
 })

@@ -34,6 +34,7 @@ function makeEntry(overrides: Partial<RosterEntry>): RosterEntry {
     rank: 1,
     isTie: false,
     isOwner: false,
+    joinedAtMs: 0,
     ...overrides,
   }
 }

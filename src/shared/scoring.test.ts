@@ -2,18 +2,30 @@ import { describe, it, expect } from 'vitest'
 import {
   scorePrediction,
   outcomeOf,
+  mergeScoring,
+  effectiveScoring,
   DEFAULT_SCORING,
   type ScoringConfig,
   type Scoreline,
 } from './scoring'
 
 // A self-contained config so these tests never depend on global config state.
+// Mirrors DEFAULT_SCORING incl. the per-stage round-bonus map.
 const cfg: ScoringConfig = {
   exact: 5,
   outcome: 3,
   goalDiffBonus: 1,
   goalDiffOnlyOnCorrectOutcome: true,
   gradeOn: 'fullTime90',
+  roundBonus: {
+    GROUP_STAGE: 0,
+    LAST_32: 0,
+    LAST_16: 1,
+    QUARTER_FINALS: 2,
+    SEMI_FINALS: 3,
+    FINAL: 4,
+    THIRD_PLACE: 3,
+  },
 }
 
 const s = (home: number, away: number): Scoreline => ({ home, away })
@@ -33,14 +45,23 @@ describe('DEFAULT_SCORING', () => {
       goalDiffBonus: 1,
       goalDiffOnlyOnCorrectOutcome: true,
       gradeOn: 'fullTime90',
+      roundBonus: {
+        GROUP_STAGE: 0,
+        LAST_32: 0,
+        LAST_16: 1,
+        QUARTER_FINALS: 2,
+        SEMI_FINALS: 3,
+        FINAL: 4,
+        THIRD_PLACE: 3,
+      },
     })
   })
 
-  it('is used when cfg is omitted', () => {
-    // Exact non-draw: exact(5) + goalDiff bonus(1) = 6 under defaults.
+  it('is used when cfg is omitted (no stage ⇒ no round bonus)', () => {
+    // Exact non-draw: exact(5) + goalDiff bonus(1) = 6 under defaults; roundBonus 0.
     expect(scorePrediction(s(2, 1), s(2, 1))).toEqual({
       points: 6,
-      breakdown: { exact: 5, outcome: 0, goalDiff: 1 },
+      breakdown: { exact: 5, outcome: 0, goalDiff: 1, roundBonus: 0 },
     })
   })
 })
@@ -75,7 +96,7 @@ describe('scorePrediction — acceptance rules', () => {
   it('complete miss (wrong outcome, wrong score) → 0', () => {
     const r = scorePrediction(s(2, 0), s(0, 2), cfg)
     expect(r.points).toBe(0)
-    expect(r.breakdown).toEqual({ exact: 0, outcome: 0, goalDiff: 0 })
+    expect(r.breakdown).toEqual({ exact: 0, outcome: 0, goalDiff: 0, roundBonus: 0 })
   })
 
   it('predicted draw, actual draw, exact → exact + bonus', () => {
@@ -132,6 +153,7 @@ describe('scorePrediction — goal-diff bonus policy flag', () => {
       goalDiffBonus: 2,
       goalDiffOnlyOnCorrectOutcome: true,
       gradeOn: 'fullTime90',
+      roundBonus: {},
     }
     expect(scorePrediction(s(2, 0), s(2, 0), custom).points).toBe(12) // 10 + 2
     expect(scorePrediction(s(2, 1), s(3, 1), custom).points).toBe(4) // outcome only
@@ -169,5 +191,119 @@ describe('scorePrediction — purity', () => {
     const a = scorePrediction(s(1, 0), s(1, 0), cfg)
     const b = scorePrediction(s(1, 0), s(1, 0), cfg)
     expect(a.breakdown).not.toBe(b.breakdown)
+  })
+})
+
+// The breakdown must always sum to points across every graded case.
+const sumsToPoints = (r: {
+  points: number
+  breakdown: { exact: number; outcome: number; goalDiff: number; roundBonus: number }
+}) =>
+  expect(r.points).toBe(
+    r.breakdown.exact + r.breakdown.outcome + r.breakdown.goalDiff + r.breakdown.roundBonus,
+  )
+
+describe('scorePrediction — per-stage round bonus', () => {
+  it('exact FINAL → base 6 + round bonus 4 = 10', () => {
+    const r = scorePrediction(s(2, 1), s(2, 1), cfg, 'FINAL')
+    expect(r.breakdown).toEqual({ exact: 5, outcome: 0, goalDiff: 1, roundBonus: 4 })
+    expect(r.points).toBe(10)
+    sumsToPoints(r)
+  })
+
+  it('exact GROUP_STAGE → base 6 + bonus 0 = 6', () => {
+    const r = scorePrediction(s(2, 1), s(2, 1), cfg, 'GROUP_STAGE')
+    expect(r.breakdown.roundBonus).toBe(0)
+    expect(r.points).toBe(6)
+    sumsToPoints(r)
+  })
+
+  it('outcome-only LAST_16 → base 3 + bonus 1 = 4', () => {
+    // Both home wins, different goal diff (1 vs 2) → outcome only.
+    const r = scorePrediction(s(2, 1), s(3, 1), cfg, 'LAST_16')
+    expect(r.breakdown).toEqual({ exact: 0, outcome: 3, goalDiff: 0, roundBonus: 1 })
+    expect(r.points).toBe(4)
+    sumsToPoints(r)
+  })
+
+  it('QUARTER_FINALS outcome + goal-diff (non-exact) → base 4 + bonus 2 = 6', () => {
+    // Both away wins by 1: 1-2 vs 2-3 → outcome 3 + goalDiff 1 = 4 base, +2 bonus.
+    const r = scorePrediction(s(1, 2), s(2, 3), cfg, 'QUARTER_FINALS')
+    expect(r.breakdown).toEqual({ exact: 0, outcome: 3, goalDiff: 1, roundBonus: 2 })
+    expect(r.points).toBe(6)
+    sumsToPoints(r)
+  })
+
+  it('LAST_32 → base only (bonus 0)', () => {
+    const r = scorePrediction(s(2, 1), s(2, 1), cfg, 'LAST_32')
+    expect(r.breakdown.roundBonus).toBe(0)
+    expect(r.points).toBe(6)
+    sumsToPoints(r)
+  })
+
+  it('a WRONG prediction with a stage earns NO bonus (base 0 ⇒ 0)', () => {
+    const r = scorePrediction(s(2, 0), s(0, 2), cfg, 'FINAL')
+    expect(r.breakdown).toEqual({ exact: 0, outcome: 0, goalDiff: 0, roundBonus: 0 })
+    expect(r.points).toBe(0)
+    sumsToPoints(r)
+  })
+
+  it('calling with NO stage is back-compat: base points, bonus 0', () => {
+    const r = scorePrediction(s(2, 1), s(2, 1), cfg)
+    expect(r.breakdown.roundBonus).toBe(0)
+    expect(r.points).toBe(6)
+    sumsToPoints(r)
+  })
+
+  it('an unknown stage contributes 0', () => {
+    const r = scorePrediction(s(2, 1), s(2, 1), cfg, 'NOT_A_STAGE')
+    expect(r.breakdown.roundBonus).toBe(0)
+    expect(r.points).toBe(6)
+    sumsToPoints(r)
+  })
+})
+
+describe('mergeScoring / effectiveScoring', () => {
+  it('deep-merges roundBonus: a FINAL-bonus-10 override keeps other stages at defaults', () => {
+    const merged = mergeScoring(DEFAULT_SCORING, { roundBonus: { FINAL: 10 } })
+    expect(merged.roundBonus.FINAL).toBe(10)
+    expect(merged.roundBonus.LAST_16).toBe(1) // unchanged default
+    expect(merged.roundBonus.QUARTER_FINALS).toBe(2)
+    // Exact FINAL under the override: base 6 + bonus 10 = 16 (config-driven).
+    const r = scorePrediction(s(2, 1), s(2, 1), merged, 'FINAL')
+    expect(r.points).toBe(16)
+    sumsToPoints(r)
+  })
+
+  it('merges top-level fields shallowly while deep-merging roundBonus', () => {
+    const merged = mergeScoring(DEFAULT_SCORING, { exact: 8, roundBonus: { SEMI_FINALS: 5 } })
+    expect(merged.exact).toBe(8)
+    expect(merged.outcome).toBe(3) // untouched base
+    expect(merged.roundBonus.SEMI_FINALS).toBe(5)
+    expect(merged.roundBonus.FINAL).toBe(4) // untouched base
+  })
+
+  it('does not mutate base or the override', () => {
+    const override = { roundBonus: { FINAL: 99 } }
+    mergeScoring(DEFAULT_SCORING, override)
+    expect(DEFAULT_SCORING.roundBonus.FINAL).toBe(4)
+    expect(override).toEqual({ roundBonus: { FINAL: 99 } })
+  })
+
+  it('mergeScoring with no override returns a deep copy of base', () => {
+    const merged = mergeScoring(DEFAULT_SCORING)
+    expect(merged).toEqual(DEFAULT_SCORING)
+    expect(merged.roundBonus).not.toBe(DEFAULT_SCORING.roundBonus)
+  })
+
+  it('effectiveScoring(group) without scoring ⇒ defaults', () => {
+    expect(effectiveScoring({})).toEqual(DEFAULT_SCORING)
+  })
+
+  it('effectiveScoring(group) deep-merges the group override over defaults', () => {
+    const eff = effectiveScoring({ scoring: { roundBonus: { FINAL: 7 } } })
+    expect(eff.roundBonus.FINAL).toBe(7)
+    expect(eff.roundBonus.LAST_16).toBe(1)
+    expect(eff.exact).toBe(5)
   })
 })

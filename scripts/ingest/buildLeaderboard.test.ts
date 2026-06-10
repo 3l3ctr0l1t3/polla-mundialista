@@ -9,7 +9,7 @@ import {
   type ParticipantProfile,
 } from './buildLeaderboard.ts'
 import { mapMatch } from './mapMatch.ts'
-import { scorePrediction, type Scoreline } from './scoring.ts'
+import { scorePrediction, mergeScoring, DEFAULT_SCORING, type Scoreline } from './scoring.ts'
 import type { FdMatchesResponse, FdMatch } from './types.ts'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
@@ -37,11 +37,11 @@ function graded(uid: string, matchId: number, pred: Scoreline): GradedPrediction
 
 // Finished fixtures: 500001 = 2-1 (home), 500002 = 1-1 (draw), 500003 = 0-2 (away).
 const users: ParticipantProfile[] = [
-  { uid: 'u_ana', displayName: 'Ana', photoURL: null },
-  { uid: 'u_beto', displayName: 'Beto', photoURL: 'https://x/b.png' },
-  { uid: 'u_caro', displayName: 'Caro', photoURL: null },
-  { uid: 'u_dani', displayName: 'Dani', photoURL: null },
-  { uid: 'u_zoe', displayName: 'Zoe', photoURL: null }, // no predictions
+  { uid: 'u_ana', displayName: 'Ana', photoURL: null, joinedAtMs: 1000 },
+  { uid: 'u_beto', displayName: 'Beto', photoURL: 'https://x/b.png', joinedAtMs: 2000 },
+  { uid: 'u_caro', displayName: 'Caro', photoURL: null, joinedAtMs: 3000 },
+  { uid: 'u_dani', displayName: 'Dani', photoURL: null, joinedAtMs: 4000 },
+  { uid: 'u_zoe', displayName: 'Zoe', photoURL: null, joinedAtMs: 5000 }, // no predictions
 ]
 
 describe('buildLeaderboard (real scoring engine + sample)', () => {
@@ -92,7 +92,7 @@ describe('buildLeaderboard (real scoring engine + sample)', () => {
     expect(board.map((r) => r.uid)).toEqual(['u_ana', 'u_beto', 'u_caro', 'u_dani', 'u_zoe'])
   })
 
-  it('breaks points ties by exactCount, then outcomeCount, then displayName', () => {
+  it('breaks points ties by exactCount, then outcomeCount, then joinedAt', () => {
     // Two users, identical 12 points, differ on exactCount.
     const predictions: GradedPrediction[] = [
       // Higher: two exact (6 + 6) = 12, exactCount 2.
@@ -104,15 +104,35 @@ describe('buildLeaderboard (real scoring engine + sample)', () => {
       graded('u_low', 500003, { home: 1, away: 3 }), // away win, gd -2 == -2 → 4
     ]
     const board = buildLeaderboard(predictions, [
-      { uid: 'u_low', displayName: 'Aaron', photoURL: null }, // earlier name, but loses on exact
-      { uid: 'u_high', displayName: 'Zane', photoURL: null },
+      { uid: 'u_low', displayName: 'Aaron', photoURL: null, joinedAtMs: 100 }, // earliest, but loses on exact
+      { uid: 'u_high', displayName: 'Zane', photoURL: null, joinedAtMs: 999 },
     ])
     expect(board.find((r) => r.uid === 'u_high')!.totalPoints).toBe(12)
     expect(board.find((r) => r.uid === 'u_low')!.totalPoints).toBe(12)
-    // Exact-count tiebreaker wins over displayName.
+    // Exact-count tiebreaker wins over the join-time tiebreaker.
     expect(board.map((r) => r.uid)).toEqual(['u_high', 'u_low'])
     expect(board.find((r) => r.uid === 'u_high')!.rank).toBe(1)
     expect(board.find((r) => r.uid === 'u_low')!.rank).toBe(2)
+  })
+
+  it('breaks a full points/exact/outcome tie by earliest joinedAt (not name)', () => {
+    // Two users with identical scoring keys AND identical display names: the only
+    // distinguishing key is join time. The earliest joiner must rank first.
+    const predictions: GradedPrediction[] = [
+      graded('u_late', 500001, { home: 2, away: 1 }), // exact → 6
+      graded('u_early', 500001, { home: 2, away: 1 }), // exact → 6
+    ]
+    const board = buildLeaderboard(predictions, [
+      // Same name on purpose; u_late joined later despite sorting first by uid.
+      { uid: 'u_late', displayName: 'Sam', photoURL: null, joinedAtMs: 5000 },
+      { uid: 'u_early', displayName: 'Sam', photoURL: null, joinedAtMs: 1000 },
+    ])
+    expect(board.find((r) => r.uid === 'u_early')!.totalPoints).toBe(6)
+    expect(board.find((r) => r.uid === 'u_late')!.totalPoints).toBe(6)
+    // Earliest join wins; both share the dense rank (tie excludes join time).
+    expect(board.map((r) => r.uid)).toEqual(['u_early', 'u_late'])
+    expect(board.find((r) => r.uid === 'u_early')!.rank).toBe(1)
+    expect(board.find((r) => r.uid === 'u_late')!.rank).toBe(1)
   })
 
   it('ignores ungraded predictions and predictions for unknown users', () => {
@@ -123,9 +143,67 @@ describe('buildLeaderboard (real scoring engine + sample)', () => {
       graded('u_ana', 500001, { home: 2, away: 1 }), // exact → 6 (5 + gd bonus 1)
     ]
     const board = buildLeaderboard(predictions, [
-      { uid: 'u_ana', displayName: 'Ana', photoURL: null },
+      { uid: 'u_ana', displayName: 'Ana', photoURL: null, joinedAtMs: 1000 },
     ])
     expect(board).toHaveLength(1)
     expect(board[0]).toMatchObject({ uid: 'u_ana', totalPoints: 6, predictionsGraded: 1, rank: 1 })
+  })
+
+  it('applies a per-group scoring override (round bonus) at grading time', () => {
+    // 500005 is a FINISHED LAST_32 knockout fixture (1-1 draw). A group sets a
+    // FINAL bonus of 10 — but LAST_32 also carries a (default 0) round bonus, so
+    // override the LAST_32 bonus to prove the per-group config reaches grading.
+    const SCORING_VERSION = 2 // mirrors scripts/ingest/index.ts after the 1→2 bump
+    const groupCfg = mergeScoring(DEFAULT_SCORING, {
+      roundBonus: { FINAL: 10, LAST_32: 7 },
+    })
+    const actual = actualOf(500005) // 1-1
+    const stage = mapMatch(matchById(500005)).stage // 'LAST_32'
+
+    // Exact 1-1 prediction under the override: exact 5 + gd 1 + LAST_32 bonus 7 = 13.
+    const exact = scorePrediction({ home: 1, away: 1 }, actual, groupCfg, stage)
+    expect(exact.points).toBe(13)
+    expect(Number.isInteger(exact.points)).toBe(true)
+    expect(exact.breakdown).toMatchObject({ exact: 5, outcome: 0, goalDiff: 1, roundBonus: 7 })
+
+    // Outcome-only draw (0-0) vs 1-1: outcome 3 + gd 0==0 bonus 1 + LAST_32 bonus 7 = 11.
+    const outcomeOnly = scorePrediction({ home: 0, away: 0 }, actual, groupCfg, stage)
+    expect(outcomeOnly.points).toBe(11)
+    expect(outcomeOnly.breakdown).toMatchObject({
+      exact: 0,
+      outcome: 3,
+      goalDiff: 1,
+      roundBonus: 7,
+    })
+
+    // A clean miss earns NO round bonus.
+    const miss = scorePrediction({ home: 2, away: 0 }, actual, groupCfg, stage)
+    expect(miss.points).toBe(0)
+    expect(miss.breakdown.roundBonus).toBe(0)
+
+    // The override aggregates into a leaderboard with the correct counts.
+    const board = buildLeaderboard(
+      [
+        { uid: 'u_exact', points: exact.points, breakdown: exact.breakdown },
+        { uid: 'u_out', points: outcomeOnly.points, breakdown: outcomeOnly.breakdown },
+      ],
+      [
+        { uid: 'u_exact', displayName: 'Exa', photoURL: null, joinedAtMs: 1 },
+        { uid: 'u_out', displayName: 'Out', photoURL: null, joinedAtMs: 2 },
+      ],
+    )
+    expect(board.find((r) => r.uid === 'u_exact')).toMatchObject({
+      totalPoints: 13,
+      exactCount: 1,
+      outcomeCount: 0,
+    })
+    expect(board.find((r) => r.uid === 'u_out')).toMatchObject({
+      totalPoints: 11,
+      exactCount: 0,
+      outcomeCount: 1,
+    })
+
+    // The grading-version guard this path re-grades under.
+    expect(SCORING_VERSION).toBe(2)
   })
 })

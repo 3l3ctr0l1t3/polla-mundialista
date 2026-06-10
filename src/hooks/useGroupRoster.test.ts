@@ -33,7 +33,12 @@ vi.mock('../group/useGroup', () => ({
 
 import { useGroupRoster } from './useGroupRoster'
 
-const fakeTs = {} as Group['createdAt']
+/** A Timestamp-mock at a given epoch ms (only `toMillis` is read by the hook). */
+function ts(ms: number): Group['createdAt'] {
+  return { toMillis: () => ms, toDate: () => new Date(ms) } as unknown as Group['createdAt']
+}
+
+const fakeTs = ts(0)
 
 function makeGroup(overrides: Partial<Group> = {}): Group {
   return {
@@ -48,7 +53,11 @@ function makeGroup(overrides: Partial<Group> = {}): Group {
   }
 }
 
-function memberDoc(uid: string, displayName: string): { id: string; data: () => Member } {
+function memberDoc(
+  uid: string,
+  displayName: string,
+  requestedAtMs = 0,
+): { id: string; data: () => Member } {
   return {
     id: uid,
     data: () => ({
@@ -58,7 +67,7 @@ function memberDoc(uid: string, displayName: string): { id: string; data: () => 
       photoURL: null,
       role: 'member',
       status: 'approved',
-      requestedAt: fakeTs,
+      requestedAt: ts(requestedAtMs),
       decidedAt: null,
       decidedBy: null,
     }),
@@ -80,6 +89,7 @@ function pointsDoc(
       outcomeCount: 0,
       predictionsGraded: 0,
       rank: 0,
+      joinedAt: ts(0),
       updatedAt: fakeTs,
       ...p,
     }),
@@ -149,6 +159,35 @@ describe('useGroupRoster', () => {
     expect(a.isTie).toBe(true)
     expect(owner.rank).toBe(2)
     expect(owner.isTie).toBe(false)
+  })
+
+  it('breaks ties by join time (earliest first), NOT by display name', async () => {
+    groupValue = makeGroup({ ownerUid: 'owner', ownerName: 'Zoe', createdAt: ts(5_000) })
+    const { result } = renderHook(() => useGroupRoster('g1'))
+
+    act(() => {
+      // Alice joined LATER than Bob, despite sorting first alphabetically. With equal
+      // points/exact/outcome, Bob (earlier join) must out-rank Alice.
+      memberHandler!({
+        docs: [memberDoc('a', 'Alice', 3_000), memberDoc('b', 'Bob', 1_000)],
+      })
+      leaderboardHandler!({
+        docs: [
+          pointsDoc('a', { totalPoints: 10, joinedAt: ts(3_000) }),
+          pointsDoc('b', { totalPoints: 10, joinedAt: ts(1_000) }),
+        ],
+      })
+    })
+
+    await waitFor(() => expect(result.current.loading).toBe(false))
+    const roster = result.current.roster
+
+    const a = roster.find((r) => r.uid === 'a')!
+    const b = roster.find((r) => r.uid === 'b')!
+    // Bob joined first -> ranked ahead of Alice even though "Alice" < "Bob" by name.
+    expect(roster.indexOf(b)).toBeLessThan(roster.indexOf(a))
+    expect(b.joinedAtMs).toBe(1_000)
+    expect(a.joinedAtMs).toBe(3_000)
   })
 
   it('de-dupes the owner if they also appear as a leaderboard row', async () => {

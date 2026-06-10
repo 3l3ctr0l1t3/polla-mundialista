@@ -391,11 +391,6 @@ service cloud.firestore {
         || request.time < tournamentCfg().firstCupMatchKickoff - duration.value(10, 'm');
     }
 
-    // True iff the ONLY field this update touches is `mode` (used to confine non-owner admins).
-    function onlyModeFieldChanged() {
-      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(['mode']);
-    }
-
     // ---- group-scoring write gating (ticket 025) ----------------------------
     // The per-group `scoring` config (mirrors `mode`): an admin-managed group setting,
     // editable until the SAME freeze instant as `mode` (modeChangeable() =

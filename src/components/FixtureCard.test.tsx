@@ -113,6 +113,26 @@ describe('FixtureCard', () => {
     expect(screen.queryByRole('button', { name: /predictions/i })).toBeNull()
   })
 
+  it('stacks each team name ABOVE its flag (name precedes flag in DOM, both teams)', () => {
+    renderCard(<FixtureCard gid="g1" match={makeMatch()} now={beforeKickoff} />)
+    // Flags have no crest in the fixture, so each Avatar renders the SportsSoccerIcon fallback.
+    const [homeFlag, awayFlag] = screen.getAllByTestId('SportsSoccerIcon')
+    const homeName = screen.getByText('Home')
+    const awayName = screen.getByText('Away')
+    // FOLLOWING = the flag comes after the name => name is stacked on top.
+    expect(
+      homeName.compareDocumentPosition(homeFlag) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy()
+    expect(
+      awayName.compareDocumentPosition(awayFlag) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy()
+    // Card keeps its accessible "X versus Y" label.
+    expect(screen.getByLabelText('Home versus Away')).toBeInTheDocument()
+    // Name carries its title attribute (hover / a11y) for both teams.
+    expect(homeName).toHaveAttribute('title', 'Home')
+    expect(awayName).toHaveAttribute('title', 'Away')
+  })
+
   it('saves a new prediction with the right ref + shape on Save', async () => {
     renderCard(<FixtureCard gid="g1" match={makeMatch()} now={beforeKickoff} />)
 

@@ -3,9 +3,9 @@
  * (its editable / "upcoming" state), with a pluggable score-input center.
  *
  * Mirrors the production card chrome exactly — caption + "Locks in" chip on top, the
- * one-line teams row (home name · flag · CENTER · flag · away name, names stacking over the
- * flags on mobile), and the Save button — so we can drop different score-input widgets into
- * the `children` slot and compare them in real context. PRESENTATIONAL ONLY: no Firestore,
+ * teams row (home column · CENTER · away column, each team's NAME stacked above its FLAG at
+ * every breakpoint), and the Save button — so we can drop a score-input widget into the
+ * `children` slot and judge it in real context. PRESENTATIONAL ONLY: no Firestore,
  * no real lock; the chip and Save button are static. Keep this in sync with FixtureCard when
  * a winning input is chosen and ported back.
  */
@@ -30,8 +30,8 @@ export interface FixtureCardPreviewProps {
   children: ReactNode
 }
 
-/** A team name — outer element on its side of the line (mirrors FixtureCard.TeamName). */
-function TeamName({ team, align }: { team: Team; align: 'left' | 'right' }) {
+/** A team name — sits ABOVE the flag, centered and wrapping at every width (mirrors FixtureCard.TeamName). */
+function TeamName({ team }: { team: Team }) {
   const tbd = isTbdTeam(team)
   const name = tbd ? 'TBD' : team.name
   return (
@@ -39,17 +39,13 @@ function TeamName({ team, align }: { team: Team; align: 'left' | 'right' }) {
       variant="body2"
       title={name}
       sx={{
-        flex: { sm: 1 },
+        width: '100%',
         minWidth: 0,
-        maxWidth: '100%',
-        width: { xs: '100%', sm: 'auto' },
-        textAlign: { xs: 'center', sm: align },
+        textAlign: 'center',
         fontWeight: 600,
         lineHeight: 1.15,
         color: tbd ? 'text.secondary' : 'text.primary',
-        whiteSpace: { xs: 'normal', sm: 'nowrap' },
-        overflow: { sm: 'hidden' },
-        textOverflow: { sm: 'ellipsis' },
+        whiteSpace: 'normal',
       }}
     >
       {name}
@@ -106,32 +102,22 @@ export function FixtureCardPreview({ match, children }: FixtureCardPreviewProps)
             sx={{ width: '100%', alignItems: 'center', justifyContent: 'center' }}
           >
             <Stack
-              direction={{ xs: 'column', sm: 'row' }}
-              spacing={{ xs: 0.5, sm: 1 }}
-              sx={{
-                flex: 1,
-                minWidth: 0,
-                alignItems: 'center',
-                justifyContent: { sm: 'flex-end' },
-              }}
+              direction="column"
+              spacing={0.5}
+              sx={{ flex: 1, minWidth: 0, alignItems: 'center', justifyContent: 'center' }}
             >
-              <TeamName team={homeTeam} align="right" />
+              <TeamName team={homeTeam} />
               <TeamFlag team={homeTeam} />
             </Stack>
 
             <Box sx={{ flexShrink: 0, px: 0.5 }}>{children}</Box>
 
             <Stack
-              direction={{ xs: 'column', sm: 'row-reverse' }}
-              spacing={{ xs: 0.5, sm: 1 }}
-              sx={{
-                flex: 1,
-                minWidth: 0,
-                alignItems: 'center',
-                justifyContent: { sm: 'flex-end' },
-              }}
+              direction="column"
+              spacing={0.5}
+              sx={{ flex: 1, minWidth: 0, alignItems: 'center', justifyContent: 'center' }}
             >
-              <TeamName team={awayTeam} align="left" />
+              <TeamName team={awayTeam} />
               <TeamFlag team={awayTeam} />
             </Stack>
           </Stack>

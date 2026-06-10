@@ -3,9 +3,9 @@
  *
  * Merges the old read-only `MatchCard` (status/score + reveal dialog) and the old
  * `PredictionCard`/`PredictionInput` (score steppers + save) into a single surface on the
- * Fixtures page. Layout is a single centered line — home name · home flag · prediction/result ·
- * away flag · away name (flags inboard next to the score, names on the outside) — with the
- * caption + status above it.
+ * Fixtures page. Layout is a centered row of three columns — home (name above flag) ·
+ * prediction/result · away (name above flag) — the team name stacked over its flag at every
+ * breakpoint, with the caption + status above it.
  *
  * UPCOMING (not final, not in-play, real teams): renders the two centered goal steppers +
  * Save/Update button driven by `useSavePrediction` (the ONE write path — never points), with
@@ -79,8 +79,8 @@ function stageLabel(match: Match, t: TFunction): string {
   }
 }
 
-/** A team name — outer element on its side of the line; shrinks/ellipsizes to fit. */
-function TeamName({ team, align }: { team: Team; align: 'left' | 'right' }) {
+/** A team name — sits ABOVE the flag, centered and wrapping at every breakpoint. */
+function TeamName({ team }: { team: Team }) {
   const teamName = useTeamName()
   const tbd = isTbdTeam(team)
   const name = teamName(team)
@@ -89,18 +89,14 @@ function TeamName({ team, align }: { team: Team; align: 'left' | 'right' }) {
       variant="body2"
       title={name}
       sx={{
-        flex: { sm: 1 },
+        width: '100%',
         minWidth: 0,
-        maxWidth: '100%',
-        width: { xs: '100%', sm: 'auto' },
-        textAlign: { xs: 'center', sm: align },
+        textAlign: 'center',
         fontWeight: 600,
         lineHeight: 1.15,
         color: tbd ? 'text.secondary' : 'text.primary',
-        // Mobile: wrap so the full country name shows (centered). Desktop: ellipsize on the line.
-        whiteSpace: { xs: 'normal', sm: 'nowrap' },
-        overflow: { sm: 'hidden' },
-        textOverflow: { sm: 'ellipsis' },
+        // Wrap so the full country name shows on its own line(s), centered above the flag.
+        whiteSpace: 'normal',
       }}
     >
       {name}
@@ -274,18 +270,13 @@ export function FixtureCard({ gid, match, existing, now }: FixtureCardProps) {
             spacing={1}
             sx={{ width: '100%', alignItems: 'center', justifyContent: 'center' }}
           >
-            {/* Mobile: name on top of flag (column). Desktop: name · flag inline. */}
+            {/* Name on top of flag (centered column) at every breakpoint. */}
             <Stack
-              direction={{ xs: 'column', sm: 'row' }}
-              spacing={{ xs: 0.5, sm: 1 }}
-              sx={{
-                flex: 1,
-                minWidth: 0,
-                alignItems: 'center',
-                justifyContent: { sm: 'flex-end' },
-              }}
+              direction="column"
+              spacing={0.5}
+              sx={{ flex: 1, minWidth: 0, alignItems: 'center', justifyContent: 'center' }}
             >
-              <TeamName team={homeTeam} align="right" />
+              <TeamName team={homeTeam} />
               <TeamFlag team={homeTeam} />
             </Stack>
 
@@ -341,16 +332,11 @@ export function FixtureCard({ gid, match, existing, now }: FixtureCardProps) {
             </Box>
 
             <Stack
-              direction={{ xs: 'column', sm: 'row-reverse' }}
-              spacing={{ xs: 0.5, sm: 1 }}
-              sx={{
-                flex: 1,
-                minWidth: 0,
-                alignItems: 'center',
-                justifyContent: { sm: 'flex-end' },
-              }}
+              direction="column"
+              spacing={0.5}
+              sx={{ flex: 1, minWidth: 0, alignItems: 'center', justifyContent: 'center' }}
             >
-              <TeamName team={awayTeam} align="left" />
+              <TeamName team={awayTeam} />
               <TeamFlag team={awayTeam} />
             </Stack>
           </Stack>

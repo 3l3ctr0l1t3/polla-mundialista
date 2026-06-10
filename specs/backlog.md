@@ -26,6 +26,10 @@ Dependency order: 001 → 002 → 003 → (004, 006 parallel) → 005 → 007 �
 | 018 | Unified fixture+prediction card | ✅ | 013, 017 | react-mui-builder |
 | 019 | Group prediction modes (Lazy vs Strict) | 🟨 | 012, 013, 018 | firestore-rules-engineer + react-mui-builder |
 | 020 | Localized (Spanish) country names | ✅ | 017, 018 | react-mui-builder |
+| 021 | Push notifications — FCM client foundation | 🟦 | 016 | react-mui-builder + firestore-rules-engineer |
+| 022 | Match reminders + results/points + leaderboard moves (cron sender) | 🟦 | 021 | ingestion-engineer + react-mui-builder |
+| 023 | Group-activity notifications (outbox) | 🟦 | 021 | firestore-rules-engineer + ingestion-engineer |
+| 024 | Fixture card: stack team name above flag on all breakpoints (+ Canvas cleanup) | ✅ | 018 | react-mui-builder |
 
 > 012 restructures predictions/leaderboard/membership to be **per-group** (supersedes the single-pool
 > parts of 005/007/011); matches/standings/config stay global. Built in phases A–D (see 012/plan.md).

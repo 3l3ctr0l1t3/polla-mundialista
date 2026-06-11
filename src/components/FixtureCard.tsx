@@ -27,7 +27,6 @@ import { useState } from 'react'
 import dayjs from 'dayjs'
 import Card from '@mui/material/Card'
 import CardContent from '@mui/material/CardContent'
-import CardActions from '@mui/material/CardActions'
 import Box from '@mui/material/Box'
 import Stack from '@mui/material/Stack'
 import Typography from '@mui/material/Typography'
@@ -300,7 +299,18 @@ export function FixtureCard({ gid, match, existing, now }: FixtureCardProps) {
               <TeamFlag team={homeTeam} />
             </Stack>
 
-            <Box sx={{ flexShrink: 0, px: 0.5 }}>
+            {/* Fixed-height center so swapping steppers ↔ read-only numerals ↔ result
+                never changes the card's height (84px = the stepper column's height). */}
+            <Box
+              sx={{
+                flexShrink: 0,
+                px: 0.5,
+                minHeight: 84,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
               {editable ? (
                 <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
                   <Spinner
@@ -397,7 +407,9 @@ export function FixtureCard({ gid, match, existing, now }: FixtureCardProps) {
             </Stack>
           </Stack>
 
-          {/* Upcoming: Save/Update (the "Locks in…" countdown lives top-right). */}
+          {/* ONE action slot, same geometry in every state, so the editable → locked →
+              live/finished transitions never resize the card: Save/Update while editable,
+              the reveal button (identical variant/size) once locked or kicked off. */}
           {editable && (
             <Button
               variant="contained"
@@ -408,6 +420,17 @@ export function FixtureCard({ gid, match, existing, now }: FixtureCardProps) {
               onClick={() => void save()}
             >
               {existing ? t('predictions.update') : t('predictions.save')}
+            </Button>
+          )}
+          {(lockedUpcoming || showResult) && (
+            <Button
+              variant="contained"
+              color="primary"
+              size="small"
+              startIcon={<EyeIcon />}
+              onClick={() => setDialogOpen(true)}
+            >
+              {t('predictions.openDialog')}
             </Button>
           )}
 
@@ -431,24 +454,16 @@ export function FixtureCard({ gid, match, existing, now }: FixtureCardProps) {
         </Stack>
       </CardContent>
 
-      {/* Locked or live/finished: reveal everyone's picks — one shared block, ONE dialog
-          instance. Pre-kickoff the dialog shows its rules-gated "reveals at kickoff"
-          placeholder and issues no query (`kickedOff` gate, ticket 013). */}
+      {/* ONE dialog instance for the locked + live/finished states. Pre-kickoff it shows
+          its rules-gated "reveals at kickoff" placeholder and issues no query (ticket 013). */}
       {(showResult || lockedUpcoming) && (
-        <>
-          <CardActions sx={{ pt: 0, px: 2, pb: 1.5, justifyContent: 'center' }}>
-            <Button size="small" startIcon={<EyeIcon />} onClick={() => setDialogOpen(true)}>
-              {t('predictions.openDialog')}
-            </Button>
-          </CardActions>
-          <MatchPredictionsDialog
-            gid={gid}
-            match={match}
-            kickedOff={kickedOff}
-            open={dialogOpen}
-            onClose={() => setDialogOpen(false)}
-          />
-        </>
+        <MatchPredictionsDialog
+          gid={gid}
+          match={match}
+          kickedOff={kickedOff}
+          open={dialogOpen}
+          onClose={() => setDialogOpen(false)}
+        />
       )}
 
       <Snackbar

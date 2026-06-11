@@ -39,7 +39,7 @@ import Snackbar from '@mui/material/Snackbar'
 import Alert from '@mui/material/Alert'
 import KeyboardArrowUpIcon from '@mui/icons-material/KeyboardArrowUp'
 import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown'
-import GroupsIcon from '@mui/icons-material/Groups'
+import { EyeIcon, EditScoreIcon } from './icons'
 import SportsSoccerIcon from '@mui/icons-material/SportsSoccer'
 import { useTranslation } from 'react-i18next'
 import type { TFunction } from 'i18next'
@@ -403,6 +403,7 @@ export function FixtureCard({ gid, match, existing, now }: FixtureCardProps) {
               variant="contained"
               color="primary"
               size="small"
+              startIcon={<EditScoreIcon />}
               disabled={inputsDisabled || !dirty}
               onClick={() => void save()}
             >
@@ -436,7 +437,7 @@ export function FixtureCard({ gid, match, existing, now }: FixtureCardProps) {
       {(showResult || lockedUpcoming) && (
         <>
           <CardActions sx={{ pt: 0, px: 2, pb: 1.5, justifyContent: 'center' }}>
-            <Button size="small" startIcon={<GroupsIcon />} onClick={() => setDialogOpen(true)}>
+            <Button size="small" startIcon={<EyeIcon />} onClick={() => setDialogOpen(true)}>
               {t('predictions.openDialog')}
             </Button>
           </CardActions>

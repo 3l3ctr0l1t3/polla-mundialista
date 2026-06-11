@@ -15,6 +15,7 @@
   "nav": {
     "fixtures": "Partidos",
     "leaderboard": "Tabla",
+    "rules": "Reglas",
     "standings": "Grupos",
     "admin": "Admin",
     "myGroups": "Mis grupos",
@@ -250,6 +251,15 @@
     "ownerLine": "Dueño: {{name}}",
     "createdLine": " · Creado {{date}}",
     "codeLabel": "Código: {{code}}"
+  },
+  "rules": {
+    "title": "Cómo funciona este grupo",
+    "scoringTitle": "Puntuación",
+    "lockTitle": "Cuándo se cierran las predicciones",
+    "mode": "Modo: {{mode}}",
+    "lazyLock": "Cada partido se cierra 10 minutos antes de su inicio.",
+    "strictGroupLock": "Todas las predicciones de fase de grupos se cierran 10 minutos antes del primer partido del torneo.",
+    "strictKnockoutLock": "Todas las predicciones de eliminatorias se cierran 10 minutos antes del primer partido de eliminatorias."
   },
   "scoring": {
     "open": "Cómo se ganan los puntos",

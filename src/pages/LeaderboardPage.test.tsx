@@ -72,6 +72,12 @@ describe('LeaderboardPage', () => {
     expect(screen.getByText('No participants yet')).toBeInTheDocument()
   })
 
+  it('no longer hosts the scoring rules (help button removed; rules live in the Rules tab)', () => {
+    renderPage()
+    expect(screen.queryByRole('button', { name: 'How points work' })).not.toBeInTheDocument()
+    expect(screen.queryByText('Exact score: 5 pts')).not.toBeInTheDocument()
+  })
+
   it('notes that everyone is listed and points update after ingestion', () => {
     renderPage()
     expect(

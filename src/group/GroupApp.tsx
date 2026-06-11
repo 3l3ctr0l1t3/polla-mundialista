@@ -26,6 +26,7 @@ import { useAuth } from '../auth/useAuth'
 import MembershipGate from '../pages/MembershipGate'
 import FixturesPage from '../pages/FixturesPage'
 import LeaderboardPage from '../pages/LeaderboardPage'
+import RulesPage from '../pages/RulesPage'
 import StandingsPage from '../pages/StandingsPage'
 import AdminPage from '../pages/AdminPage'
 import CanvasPage from '../pages/CanvasPage'
@@ -103,6 +104,7 @@ export function GroupApp() {
         {/* Predictions folded into the Fixtures card (ticket 018); keep old links working. */}
         <Route path="predictions" element={<Navigate to="../fixtures" replace />} />
         <Route path="leaderboard" element={<LeaderboardPage />} />
+        <Route path="rules" element={<RulesPage />} />
         <Route path="standings" element={<StandingsPage />} />
         <Route
           path="admin"

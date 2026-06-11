@@ -15,6 +15,7 @@
   "nav": {
     "fixtures": "Fixtures",
     "leaderboard": "Leaderboard",
+    "rules": "Rules",
     "standings": "Standings",
     "admin": "Admin",
     "myGroups": "My Groups",
@@ -250,6 +251,15 @@
     "ownerLine": "Owner: {{name}}",
     "createdLine": " · Created {{date}}",
     "codeLabel": "Code: {{code}}"
+  },
+  "rules": {
+    "title": "How this group works",
+    "scoringTitle": "Scoring",
+    "lockTitle": "When predictions lock",
+    "mode": "Mode: {{mode}}",
+    "lazyLock": "Each match locks 10 minutes before its kickoff.",
+    "strictGroupLock": "All group-stage picks lock 10 minutes before the first match of the tournament.",
+    "strictKnockoutLock": "All knockout picks lock 10 minutes before the first knockout match."
   },
   "scoring": {
     "open": "How points work",

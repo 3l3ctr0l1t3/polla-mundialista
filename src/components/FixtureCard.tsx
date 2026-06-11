@@ -18,14 +18,22 @@
  * "reveals at kickoff" placeholder until kickoff. `useBoundaryTick` re-renders the card at
  * the lock + kickoff instants so both swaps happen live, with no page refresh.
  *
- * LIVE/FINISHED: shows the result score, the viewer's OWN prediction subtly, and a button
- * that opens `MatchPredictionsDialog` to reveal everyone's picks (rules-gated reveal-at-kickoff).
+ * LIVE: shows the result score, the viewer's OWN prediction subtly, and a button that opens
+ * `MatchPredictionsDialog` to reveal everyone's picks (rules-gated reveal-at-kickoff).
+ *
+ * FINISHED (ticket 032): no button — the WHOLE card is an accessible click target that opens
+ * the same dialog, and a bottom-right dot + points pill (canvas option C) shows how the pick
+ * did: green `success` = exact, orange `warning` = right outcome only, red `error` = missed.
+ * Ingestion-written `points`/`breakdown` are authoritative; otherwise the pill previews with
+ * the ONE shared scoring engine (group-config aware). The card renders the SAME three fixed
+ * zones (top row · 84px center · 44px footer) in every state so it never changes size.
  *
  * All copy is localized via `t()`; all colors/shape come from the MUI theme.
  */
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import dayjs from 'dayjs'
 import Card from '@mui/material/Card'
+import CardActionArea from '@mui/material/CardActionArea'
 import CardContent from '@mui/material/CardContent'
 import Box from '@mui/material/Box'
 import Stack from '@mui/material/Stack'
@@ -43,6 +51,7 @@ import SportsSoccerIcon from '@mui/icons-material/SportsSoccer'
 import { useTranslation } from 'react-i18next'
 import type { TFunction } from 'i18next'
 import type { Match, Team, Prediction } from '../shared/types'
+import { scorePrediction, effectiveScoring } from '../shared/scoring'
 import { isTbdTeam } from '../hooks/matchGrouping'
 import { useTeamName } from '../i18n/useTeamName'
 import { useSavePrediction, toGoals } from '../hooks/useSavePrediction'
@@ -180,6 +189,70 @@ function Spinner({
   )
 }
 
+/** Best scoring tier the pick hit — drives the pill's single tint (ticket 032). */
+type Tier = 'exact' | 'outcome' | 'miss'
+
+const TIER_COLOR: Record<Tier, 'success.main' | 'warning.main' | 'error.main'> = {
+  exact: 'success.main',
+  outcome: 'warning.main',
+  miss: 'error.main',
+}
+
+/** A single colored dot (canvas option C). */
+function Dot({ color, size = 8 }: { color: string; size?: number }) {
+  return (
+    <Box
+      sx={{
+        width: size,
+        height: size,
+        borderRadius: '50%',
+        bgcolor: color,
+        border: 1,
+        borderColor: color,
+        flexShrink: 0,
+      }}
+    />
+  )
+}
+
+/**
+ * Dot + points pill, tinted by the best tier (canvas option C, ticket 032). Pinned to the
+ * card's bottom-right corner over the (empty) finished footer. Display-only: pointer events
+ * are off so it never swallows the finished card's click affordance.
+ */
+function PointsPill({ points, tier }: { points: number; tier: Tier }) {
+  const { t } = useTranslation()
+  const color = TIER_COLOR[tier]
+  return (
+    <Stack
+      direction="row"
+      spacing={0.75}
+      data-testid="fixture-card-points-pill"
+      data-tier={tier}
+      sx={{
+        position: 'absolute',
+        right: 10,
+        bottom: 8,
+        alignItems: 'center',
+        px: 1,
+        py: 0.25,
+        borderRadius: 999,
+        border: 1,
+        borderColor: color,
+        pointerEvents: 'none',
+      }}
+    >
+      <Dot color={color} size={8} />
+      <Typography
+        variant="caption"
+        sx={{ fontWeight: 700, fontVariantNumeric: 'tabular-nums', color }}
+      >
+        {t('predictions.pts', { count: points })}
+      </Typography>
+    </Stack>
+  )
+}
+
 export function FixtureCard({ gid, match, existing, now }: FixtureCardProps) {
   const { t } = useTranslation()
   const teamName = useTeamName()
@@ -196,6 +269,9 @@ export function FixtureCard({ gid, match, existing, now }: FixtureCardProps) {
   const showResult = played || status === 'IN_PLAY' || status === 'PAUSED'
   const upcoming =
     !FINAL.has(status) && status !== 'IN_PLAY' && status !== 'PAUSED' && !isTbdTeam(homeTeam)
+  // Ticket 032: grading is surfaced only at FINISHED; in-play/paused stays "live".
+  const finished = status === 'FINISHED'
+  const live = showResult && !finished
 
   const {
     homeGoals,
@@ -256,87 +332,103 @@ export function FixtureCard({ gid, match, existing, now }: FixtureCardProps) {
 
   const inputsDisabled = locked || saving
 
-  return (
-    <Card
-      aria-label={t('match.versus', {
-        home: teamName(homeTeam),
-        away: teamName(awayTeam),
-      })}
-    >
-      <CardContent sx={{ py: 2, textAlign: 'center', '&:last-child': { pb: 2 } }}>
-        <Stack spacing={1.5} sx={{ alignItems: 'center' }}>
-          {/* Top row: caption left, countdown (upcoming) / status (live·finished) top-right. */}
-          <Stack
-            direction="row"
-            spacing={1}
-            sx={{ width: '100%', alignItems: 'center', justifyContent: 'space-between', gap: 1 }}
-          >
-            <Typography variant="caption" color="text.secondary" noWrap sx={{ minWidth: 0 }}>
-              {caption}
-            </Typography>
-            {/* Upcoming (editable OR locked): the countdown chip — past `lockMs` it
+  // Points pill (ticket 032): only on a FINISHED card where the viewer predicted.
+  // Ingestion-written points/breakdown are authoritative (constitution §3 — display only);
+  // until they land, preview with the ONE shared engine under the group's effective config.
+  let pill: ReactNode = null
+  if (finished && existing && score.home !== null && score.away !== null) {
+    const graded =
+      existing.points !== undefined && existing.breakdown !== undefined
+        ? { points: existing.points, breakdown: existing.breakdown }
+        : scorePrediction(
+            { home: existing.homeGoals, away: existing.awayGoals },
+            { home: score.home, away: score.away },
+            effectiveScoring(group ?? {}),
+            match.stage,
+          )
+    const tier: Tier =
+      graded.breakdown.exact > 0 ? 'exact' : graded.breakdown.outcome > 0 ? 'outcome' : 'miss'
+    pill = <PointsPill points={graded.points} tier={tier} />
+  }
+
+  const content = (
+    <CardContent sx={{ py: 2, textAlign: 'center', '&:last-child': { pb: 2 } }}>
+      <Stack spacing={1.5} sx={{ alignItems: 'center' }}>
+        {/* Top row: caption left, countdown (upcoming) / status (live·finished) top-right. */}
+        <Stack
+          direction="row"
+          spacing={1}
+          sx={{ width: '100%', alignItems: 'center', justifyContent: 'space-between', gap: 1 }}
+        >
+          <Typography variant="caption" color="text.secondary" noWrap sx={{ minWidth: 0 }}>
+            {caption}
+          </Typography>
+          {/* Upcoming (editable OR locked): the countdown chip — past `lockMs` it
                 already renders its "Locked" chip, the right signal for both. */}
-            {upcoming ? (
-              <CountdownToKickoff kickoffMs={lockMs} now={now} tooltip={lockHint} />
-            ) : (
-              statusChip
-            )}
+          {upcoming ? (
+            <CountdownToKickoff kickoffMs={lockMs} now={now} tooltip={lockHint} />
+          ) : (
+            statusChip
+          )}
+        </Stack>
+
+        {/* One line: home name · home flag · prediction/result · away flag · away name. */}
+        <Stack
+          direction="row"
+          spacing={1}
+          sx={{ width: '100%', alignItems: 'center', justifyContent: 'center' }}
+        >
+          {/* Name on top of flag (centered column) at every breakpoint. */}
+          <Stack
+            direction="column"
+            spacing={0.5}
+            sx={{ flex: 1, minWidth: 0, alignItems: 'center', justifyContent: 'center' }}
+          >
+            <TeamName team={homeTeam} />
+            <TeamFlag team={homeTeam} />
           </Stack>
 
-          {/* One line: home name · home flag · prediction/result · away flag · away name. */}
-          <Stack
-            direction="row"
-            spacing={1}
-            sx={{ width: '100%', alignItems: 'center', justifyContent: 'center' }}
-          >
-            {/* Name on top of flag (centered column) at every breakpoint. */}
-            <Stack
-              direction="column"
-              spacing={0.5}
-              sx={{ flex: 1, minWidth: 0, alignItems: 'center', justifyContent: 'center' }}
-            >
-              <TeamName team={homeTeam} />
-              <TeamFlag team={homeTeam} />
-            </Stack>
-
-            {/* Fixed-height center so swapping steppers ↔ read-only numerals ↔ result
+          {/* Fixed-height center so swapping steppers ↔ read-only numerals ↔ result
                 never changes the card's height (84px = the stepper column's height). */}
-            <Box
-              sx={{
-                flexShrink: 0,
-                px: 0.5,
-                minHeight: 84,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
-            >
-              {editable ? (
-                <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
-                  <Spinner
-                    value={homeGoals}
-                    disabled={inputsDisabled}
-                    onChange={setHomeGoals}
-                    ariaLabel={t('predictions.teamGoals', { team: homeLabel })}
-                    increaseLabel={t('predictions.increaseGoals', { team: homeLabel })}
-                    decreaseLabel={t('predictions.decreaseGoals', { team: homeLabel })}
-                  />
-                  <Typography
-                    variant="caption"
-                    sx={{ px: 0.25, color: 'text.secondary', fontStyle: 'italic' }}
-                  >
-                    {t('predictions.vs')}
-                  </Typography>
-                  <Spinner
-                    value={awayGoals}
-                    disabled={inputsDisabled}
-                    onChange={setAwayGoals}
-                    ariaLabel={t('predictions.teamGoals', { team: awayLabel })}
-                    increaseLabel={t('predictions.increaseGoals', { team: awayLabel })}
-                    decreaseLabel={t('predictions.decreaseGoals', { team: awayLabel })}
-                  />
-                </Stack>
-              ) : showResult ? (
+          <Box
+            sx={{
+              flexShrink: 0,
+              px: 0.5,
+              minHeight: 84,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            {editable ? (
+              <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
+                <Spinner
+                  value={homeGoals}
+                  disabled={inputsDisabled}
+                  onChange={setHomeGoals}
+                  ariaLabel={t('predictions.teamGoals', { team: homeLabel })}
+                  increaseLabel={t('predictions.increaseGoals', { team: homeLabel })}
+                  decreaseLabel={t('predictions.decreaseGoals', { team: homeLabel })}
+                />
+                <Typography
+                  variant="caption"
+                  sx={{ px: 0.25, color: 'text.secondary', fontStyle: 'italic' }}
+                >
+                  {t('predictions.vs')}
+                </Typography>
+                <Spinner
+                  value={awayGoals}
+                  disabled={inputsDisabled}
+                  onChange={setAwayGoals}
+                  ariaLabel={t('predictions.teamGoals', { team: awayLabel })}
+                  increaseLabel={t('predictions.increaseGoals', { team: awayLabel })}
+                  decreaseLabel={t('predictions.decreaseGoals', { team: awayLabel })}
+                />
+              </Stack>
+            ) : showResult ? (
+              // Result score, with the viewer's own pick stacked subtly underneath so
+              // the caption never adds a row outside the fixed zones (ticket 032).
+              <Stack spacing={0.5} sx={{ alignItems: 'center' }}>
                 <Typography
                   component="p"
                   aria-label={t('match.score', { home: score.home, away: score.away })}
@@ -349,28 +441,49 @@ export function FixtureCard({ gid, match, existing, now }: FixtureCardProps) {
                 >
                   {score.home}&nbsp;–&nbsp;{score.away}
                 </Typography>
-              ) : lockedUpcoming ? (
-                // Locked, not kicked off: the viewer's OWN pick read-only — secondary
-                // color so it can't be mistaken for a result — or a dash when none.
-                existing ? (
+                {existing && (
                   <Typography
-                    component="p"
-                    aria-label={t('predictions.predicted', {
+                    variant="caption"
+                    sx={{
+                      color: 'text.secondary',
+                      letterSpacing: 0.3,
+                      lineHeight: 1.3,
+                      maxWidth: 150,
+                      textAlign: 'center',
+                    }}
+                  >
+                    {t('predictions.yourPrediction', {
                       home: existing.homeGoals,
                       away: existing.awayGoals,
                     })}
-                    sx={{
-                      fontWeight: 800,
-                      fontVariantNumeric: 'tabular-nums',
-                      fontSize: '1.6rem',
-                      whiteSpace: 'nowrap',
-                      color: 'text.secondary',
-                    }}
-                  >
-                    {existing.homeGoals}&nbsp;–&nbsp;{existing.awayGoals}
                   </Typography>
-                ) : (
-                  // The localized "no prediction" caption below carries the meaning.
+                )}
+              </Stack>
+            ) : lockedUpcoming ? (
+              // Locked, not kicked off: the viewer's OWN pick read-only — secondary
+              // color so it can't be mistaken for a result — or a dash when none.
+              existing ? (
+                <Typography
+                  component="p"
+                  aria-label={t('predictions.predicted', {
+                    home: existing.homeGoals,
+                    away: existing.awayGoals,
+                  })}
+                  sx={{
+                    fontWeight: 800,
+                    fontVariantNumeric: 'tabular-nums',
+                    fontSize: '1.6rem',
+                    whiteSpace: 'nowrap',
+                    color: 'text.secondary',
+                  }}
+                >
+                  {existing.homeGoals}&nbsp;–&nbsp;{existing.awayGoals}
+                </Typography>
+              ) : (
+                // Dash + the localized "no prediction" caption stacked inside the
+                // center slot — copy stays neutral because a strict group can lock
+                // days before this match's kickoff.
+                <Stack spacing={0.5} sx={{ alignItems: 'center' }}>
                   <Typography
                     component="p"
                     aria-hidden
@@ -384,32 +497,55 @@ export function FixtureCard({ gid, match, existing, now }: FixtureCardProps) {
                   >
                     —
                   </Typography>
-                )
-              ) : (
-                <Typography
-                  variant="body2"
-                  color="text.secondary"
-                  sx={{ whiteSpace: 'nowrap' }}
-                  aria-label={t('match.kickoff', { when: kickoffLocal.format('MMM D, HH:mm') })}
-                >
-                  {kickoffLocal.format('HH:mm')}
-                </Typography>
-              )}
-            </Box>
+                  <Typography
+                    variant="caption"
+                    sx={{
+                      color: 'text.secondary',
+                      letterSpacing: 0.3,
+                      lineHeight: 1.3,
+                      maxWidth: 150,
+                      textAlign: 'center',
+                    }}
+                  >
+                    {t('predictions.noPredictionLocked')}
+                  </Typography>
+                </Stack>
+              )
+            ) : (
+              <Typography
+                variant="body2"
+                color="text.secondary"
+                sx={{ whiteSpace: 'nowrap' }}
+                aria-label={t('match.kickoff', { when: kickoffLocal.format('MMM D, HH:mm') })}
+              >
+                {kickoffLocal.format('HH:mm')}
+              </Typography>
+            )}
+          </Box>
 
-            <Stack
-              direction="column"
-              spacing={0.5}
-              sx={{ flex: 1, minWidth: 0, alignItems: 'center', justifyContent: 'center' }}
-            >
-              <TeamName team={awayTeam} />
-              <TeamFlag team={awayTeam} />
-            </Stack>
+          <Stack
+            direction="column"
+            spacing={0.5}
+            sx={{ flex: 1, minWidth: 0, alignItems: 'center', justifyContent: 'center' }}
+          >
+            <TeamName team={awayTeam} />
+            <TeamFlag team={awayTeam} />
           </Stack>
+        </Stack>
 
-          {/* ONE action slot, same geometry in every state, so the editable → locked →
-              live/finished transitions never resize the card: Save/Update while editable,
-              the reveal button (identical variant/size) once locked or kicked off. */}
+        {/* Fixed-height FOOTER zone, present in EVERY state so the card never changes
+              size (ticket 032): Save/Update while editable, the reveal button while
+              locked or live, EMPTY when finished (the pill overlays bottom-right) or TBD. */}
+        <Box
+          data-testid="fixture-card-footer"
+          sx={{
+            height: 44,
+            width: '100%',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
           {editable && (
             <Button
               variant="contained"
@@ -422,7 +558,7 @@ export function FixtureCard({ gid, match, existing, now }: FixtureCardProps) {
               {existing ? t('predictions.update') : t('predictions.save')}
             </Button>
           )}
-          {(lockedUpcoming || showResult) && (
+          {(lockedUpcoming || live) && (
             <Button
               variant="contained"
               color="primary"
@@ -433,26 +569,35 @@ export function FixtureCard({ gid, match, existing, now }: FixtureCardProps) {
               {t('predictions.openDialog')}
             </Button>
           )}
+        </Box>
+      </Stack>
+    </CardContent>
+  )
 
-          {/* Locked, no pick saved: explain the dash — copy stays neutral because a
-              strict group can lock days before this match's kickoff. */}
-          {lockedUpcoming && !existing && (
-            <Typography variant="caption" sx={{ color: 'text.secondary', letterSpacing: 0.3 }}>
-              {t('predictions.noPredictionLocked')}
-            </Typography>
-          )}
+  return (
+    <Card
+      sx={{ position: 'relative' }}
+      aria-label={t('match.versus', {
+        home: teamName(homeTeam),
+        away: teamName(awayTeam),
+      })}
+    >
+      {/* Finished: the button is gone — the WHOLE card is the accessible doorway to the
+          reveal dialog (CardActionArea = a real focusable button; Enter/Space included).
+          The footer is empty in this state so there is no nested interactive element. */}
+      {finished ? (
+        <CardActionArea
+          aria-label={t('predictions.openDialogCard')}
+          onClick={() => setDialogOpen(true)}
+        >
+          {content}
+        </CardActionArea>
+      ) : (
+        content
+      )}
 
-          {/* Live/finished: surface the viewer's own prediction subtly. */}
-          {showResult && existing && (
-            <Typography variant="caption" sx={{ color: 'text.secondary', letterSpacing: 0.3 }}>
-              {t('predictions.yourPrediction', {
-                home: existing.homeGoals,
-                away: existing.awayGoals,
-              })}
-            </Typography>
-          )}
-        </Stack>
-      </CardContent>
+      {/* Bottom-right dot + points pill — finished + predicted only (ticket 032). */}
+      {pill}
 
       {/* ONE dialog instance for the locked + live/finished states. Pre-kickoff it shows
           its rules-gated "reveals at kickoff" placeholder and issues no query (ticket 013). */}

@@ -141,6 +141,7 @@
     "pts": "{{count}} pts",
     "earnedPoints": "Earned {{count}} points",
     "openDialog": "Predictions",
+    "openDialogCard": "See group predictions for this match",
     "yourPrediction": "Your prediction {{home}}–{{away}}",
     "noPredictionLocked": "You didn't make a prediction for this match",
     "lazyLockHint": "Locks 10 min before kickoff",

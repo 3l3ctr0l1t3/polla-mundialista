@@ -22,6 +22,7 @@ import {
   TitleMenuPreview,
   BottomSheetPreview,
 } from '../dev/GroupNavPreviews'
+import { FinishedCardOptions } from '../dev/FinishedCardPreviews'
 
 /** Widths we eyeball the card at: a phone-ish column and a roomy desktop column. */
 const MOBILE_WIDTH = 400
@@ -157,6 +158,17 @@ export function CanvasPage() {
           </Typography>
         </Box>
       </Stack>
+
+      {/* ---- Finished card: result-quality indicator options ------------------ */}
+      <Typography variant="h5" component="h2" sx={{ mt: 5, mb: 1 }}>
+        Finished card — result indicator options
+      </Typography>
+      <Alert severity="info" sx={{ mb: 2 }}>
+        Constant card size with the button gone: real score + your prediction + a bottom-right
+        indicator of how your pick did. Colors come from the REAL scoring engine. Same match (2–1)
+        with three sample predictions per option.
+      </Alert>
+      <FinishedCardOptions />
     </Box>
   )
 }

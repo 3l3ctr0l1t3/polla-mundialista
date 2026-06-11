@@ -141,6 +141,7 @@
     "pts": "{{count}} pts",
     "earnedPoints": "Ganó {{count}} puntos",
     "openDialog": "Predicciones",
+    "openDialogCard": "Ver pronósticos del grupo para este partido",
     "yourPrediction": "Tu predicción {{home}}–{{away}}",
     "noPredictionLocked": "No hiciste pronóstico para este partido",
     "lazyLockHint": "Se cierra 10 min antes del inicio",

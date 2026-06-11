@@ -25,6 +25,12 @@
     "primaryNav": "Navegación principal",
     "primary": "Principal"
   },
+  "groupSwitcher": {
+    "trigger": "Cambiar de grupo — actual: {{name}}",
+    "menuLabel": "Tus grupos",
+    "searchPlaceholder": "Buscar grupos",
+    "noMatches": "Ningún grupo coincide"
+  },
   "auth": {
     "tagline": "Inicia sesión para hacer tus predicciones y subir en la tabla.",
     "signInWithGoogle": "Iniciar sesión con Google",

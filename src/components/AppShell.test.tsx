@@ -65,6 +65,15 @@ describe('AppShell', () => {
     renderShell(<AppShell title="Custom Title" />)
     expect(screen.getByRole('heading', { name: 'Custom Title' })).toBeInTheDocument()
   })
+
+  it('renders titleControl in the title slot when provided (ticket 029)', () => {
+    renderShell(
+      <AppShell title="Fallback" titleControl={<button type="button">Switch group</button>} />,
+    )
+    // The interactive control renders instead of the plain title heading.
+    expect(screen.getByRole('button', { name: 'Switch group' })).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Fallback' })).not.toBeInTheDocument()
+  })
 })
 
 describe('AppShell — mobile bottom-nav scroll (ticket 028)', () => {

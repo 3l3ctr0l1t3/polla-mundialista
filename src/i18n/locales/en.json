@@ -25,6 +25,12 @@
     "primaryNav": "Primary navigation",
     "primary": "Primary"
   },
+  "groupSwitcher": {
+    "trigger": "Switch group — current: {{name}}",
+    "menuLabel": "Your groups",
+    "searchPlaceholder": "Search groups",
+    "noMatches": "No groups match"
+  },
   "auth": {
     "tagline": "Sign in to make your predictions and climb the leaderboard.",
     "signInWithGoogle": "Sign in with Google",

@@ -137,6 +137,12 @@ describe('GroupNavDrawer', () => {
     // toggle stays visible and clickable while open.
     const paper = document.querySelector('.MuiDrawer-paper') as HTMLElement
     expect(Number(getComputedStyle(paper).zIndex)).toBeLessThanOrEqual(theme.zIndex.drawer)
+    // PORTALED to <body>: mounted inside the fixed AppBar, the bar's stacking context
+    // would trap the drawer (desktop rail slicing through it, glass over the toolbar).
+    const drawerRoot = document.querySelector('.MuiDrawer-root') as HTMLElement
+    expect(drawerRoot.parentElement).toBe(document.body)
+    const backdrop = document.querySelector('.MuiBackdrop-root') as HTMLElement
+    expect(backdrop.parentElement).toBe(document.body)
     // Selected row: the neutral action.selected token, not the primary-tinted (blue)
     // default (the theme runs with CSS variables, so the var reference is the proof).
     const selectedRow = within(getGroupList()).getByRole('button', { name: /alpha/i })

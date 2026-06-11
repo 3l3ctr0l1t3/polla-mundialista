@@ -18,6 +18,7 @@ import { useNavigate, useLocation } from 'react-router-dom'
 import IconButton from '@mui/material/IconButton'
 import Drawer from '@mui/material/Drawer'
 import Backdrop from '@mui/material/Backdrop'
+import Portal from '@mui/material/Portal'
 import List from '@mui/material/List'
 import ListItem from '@mui/material/ListItem'
 import ListItemButton from '@mui/material/ListItemButton'
@@ -129,126 +130,132 @@ export function GroupNavDrawer() {
         {open ? <CloseIcon /> : <MenuIcon />}
       </IconButton>
 
-      {/* Dim the page below the drawer; clicking it closes. Sits under the drawer,
-          which itself sits under the app bar (AppShell's bar is zIndex.drawer + 1). */}
-      <Backdrop open={open} onClick={close} sx={(theme) => ({ zIndex: theme.zIndex.drawer - 1 })} />
+      {/* PORTALED to <body>: this component mounts inside the fixed AppBar, whose
+          stacking context would otherwise trap the drawer (under the desktop nav rail,
+          and the glass paper over the toolbar's own buttons). At body level the order
+          is rail < backdrop < drawer < app bar (bar = zIndex.drawer + 1). */}
+      <Portal>
+        {/* Dim the page (incl. the desktop rail); clicking it closes. Same z as the
+            drawer — the drawer wins by DOM order within the portal. */}
+        <Backdrop open={open} onClick={close} sx={(theme) => ({ zIndex: theme.zIndex.drawer })} />
 
-      <Drawer
-        variant="persistent"
-        anchor="left"
-        open={open}
-        slotProps={{
-          paper: {
-            sx: (theme) => ({
-              width: 300,
-              maxWidth: '85vw',
-              display: 'flex',
-              flexDirection: 'column',
-              // Below the app bar (bar = zIndex.drawer + 1) so the toggle stays usable.
-              zIndex: theme.zIndex.drawer,
-              // Clear the fixed app bar (56/64px) + extra breathing room above the options.
-              pt: { xs: 9, sm: 10 },
-              // Echo the app bar's translucent-blur treatment (theme tokens only).
-              backgroundColor: alpha(theme.palette.background.paper, 0.85),
-              backgroundImage: 'none',
-              backdropFilter: 'blur(8px)',
-              borderRight: `1px solid ${theme.palette.divider}`,
-            }),
-          },
-        }}
-      >
-        <List
-          sx={{ flex: 1, overflowY: 'auto' }}
-          aria-label={t('groupNav.yourGroups')}
-          subheader={
-            <ListSubheader component="div" sx={{ bgcolor: 'transparent' }}>
-              {t('groupNav.yourGroups')}
-            </ListSubheader>
-          }
+        <Drawer
+          variant="persistent"
+          anchor="left"
+          open={open}
+          slotProps={{
+            paper: {
+              sx: (theme) => ({
+                width: 300,
+                maxWidth: '85vw',
+                display: 'flex',
+                flexDirection: 'column',
+                // Below the app bar (bar = zIndex.drawer + 1) so the toggle stays usable.
+                zIndex: theme.zIndex.drawer,
+                // Clear the fixed app bar (56/64px) + extra breathing room above the options.
+                pt: { xs: 9, sm: 10 },
+                // Echo the app bar's translucent-blur treatment (theme tokens only).
+                backgroundColor: alpha(theme.palette.background.paper, 0.85),
+                backgroundImage: 'none',
+                backdropFilter: 'blur(8px)',
+                borderRight: `1px solid ${theme.palette.divider}`,
+              }),
+            },
+          }}
         >
-          {showSearch && (
-            <ListItem sx={{ py: 1 }}>
-              <TextField
-                size="small"
-                fullWidth
-                value={filter}
-                onChange={(e) => setFilter(e.target.value)}
-                placeholder={t('groupNav.searchPlaceholder')}
-                slotProps={{ htmlInput: { 'aria-label': t('groupNav.searchPlaceholder') } }}
-              />
-            </ListItem>
-          )}
-
-          {shown.map((g) => {
-            const selected = g.groupId === gid
-            return (
-              <ListItemButton
-                key={g.groupId}
-                selected={selected}
-                aria-current={selected ? 'true' : undefined}
-                onClick={() => handlePick(g)}
-                // Neutral selection — override MUI's primary-tinted (blue) selected wash.
-                sx={{
-                  '&.Mui-selected': { bgcolor: 'action.selected' },
-                  '&.Mui-selected:hover': { bgcolor: 'action.selected' },
-                }}
-              >
-                <ListItemAvatar sx={{ minWidth: 44 }}>
-                  <Avatar
-                    aria-hidden
-                    sx={{
-                      width: 32,
-                      height: 32,
-                      bgcolor: selected ? 'primary.main' : 'action.hover',
-                    }}
-                  >
-                    {initial(g.name)}
-                  </Avatar>
-                </ListItemAvatar>
-                <ListItemText
-                  primary={g.name}
-                  secondary={roleLabel(g)}
-                  slotProps={{ primary: { sx: { fontWeight: selected ? 700 : 500 } } }}
+          <List
+            sx={{ flex: 1, overflowY: 'auto' }}
+            aria-label={t('groupNav.yourGroups')}
+            subheader={
+              <ListSubheader component="div" sx={{ bgcolor: 'transparent' }}>
+                {t('groupNav.yourGroups')}
+              </ListSubheader>
+            }
+          >
+            {showSearch && (
+              <ListItem sx={{ py: 1 }}>
+                <TextField
+                  size="small"
+                  fullWidth
+                  value={filter}
+                  onChange={(e) => setFilter(e.target.value)}
+                  placeholder={t('groupNav.searchPlaceholder')}
+                  slotProps={{ htmlInput: { 'aria-label': t('groupNav.searchPlaceholder') } }}
                 />
-                {selected && <CheckIcon fontSize="small" color="primary" aria-hidden />}
-              </ListItemButton>
-            )
-          })}
+              </ListItem>
+            )}
 
-          {showSearch && shown.length === 0 && (
-            <ListItem>
-              <ListItemText secondary={t('groupNav.noMatches')} />
-            </ListItem>
-          )}
-        </List>
+            {shown.map((g) => {
+              const selected = g.groupId === gid
+              return (
+                <ListItemButton
+                  key={g.groupId}
+                  selected={selected}
+                  aria-current={selected ? 'true' : undefined}
+                  onClick={() => handlePick(g)}
+                  // Neutral selection — override MUI's primary-tinted (blue) selected wash.
+                  sx={{
+                    '&.Mui-selected': { bgcolor: 'action.selected' },
+                    '&.Mui-selected:hover': { bgcolor: 'action.selected' },
+                  }}
+                >
+                  <ListItemAvatar sx={{ minWidth: 44 }}>
+                    <Avatar
+                      aria-hidden
+                      sx={{
+                        width: 32,
+                        height: 32,
+                        bgcolor: selected ? 'primary.main' : 'action.hover',
+                      }}
+                    >
+                      {initial(g.name)}
+                    </Avatar>
+                  </ListItemAvatar>
+                  <ListItemText
+                    primary={g.name}
+                    secondary={roleLabel(g)}
+                    slotProps={{ primary: { sx: { fontWeight: selected ? 700 : 500 } } }}
+                  />
+                  {selected && <CheckIcon fontSize="small" color="primary" aria-hidden />}
+                </ListItemButton>
+              )
+            })}
 
-        <Divider />
+            {showSearch && shown.length === 0 && (
+              <ListItem>
+                <ListItemText secondary={t('groupNav.noMatches')} />
+              </ListItem>
+            )}
+          </List>
 
-        <List dense>
-          <ListItemButton
-            onClick={() => {
-              close()
-              navigate('/groups/new')
-            }}
-          >
-            <ListItemIcon sx={{ minWidth: 40 }}>
-              <AddIcon />
-            </ListItemIcon>
-            <ListItemText primary={t('groupNav.createGroup')} />
-          </ListItemButton>
-          <ListItemButton
-            onClick={() => {
-              close()
-              setJoinOpen(true)
-            }}
-          >
-            <ListItemIcon sx={{ minWidth: 40 }}>
-              <TagIcon />
-            </ListItemIcon>
-            <ListItemText primary={t('groupNav.joinWithCode')} />
-          </ListItemButton>
-        </List>
-      </Drawer>
+          <Divider />
+
+          <List dense>
+            <ListItemButton
+              onClick={() => {
+                close()
+                navigate('/groups/new')
+              }}
+            >
+              <ListItemIcon sx={{ minWidth: 40 }}>
+                <AddIcon />
+              </ListItemIcon>
+              <ListItemText primary={t('groupNav.createGroup')} />
+            </ListItemButton>
+            <ListItemButton
+              onClick={() => {
+                close()
+                setJoinOpen(true)
+              }}
+            >
+              <ListItemIcon sx={{ minWidth: 40 }}>
+                <TagIcon />
+              </ListItemIcon>
+              <ListItemText primary={t('groupNav.joinWithCode')} />
+            </ListItemButton>
+          </List>
+        </Drawer>
+      </Portal>
 
       <JoinGroupDialog open={joinOpen} onClose={() => setJoinOpen(false)} />
     </>

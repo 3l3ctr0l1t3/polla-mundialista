@@ -17,6 +17,11 @@ import KeyboardArrowUpIcon from '@mui/icons-material/KeyboardArrowUp'
 import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown'
 import { sampleScheduledMatch } from '../dev/sampleData'
 import { FixtureCardPreview } from '../dev/FixtureCardPreview'
+import {
+  HamburgerDrawerPreview,
+  TitleMenuPreview,
+  BottomSheetPreview,
+} from '../dev/GroupNavPreviews'
 
 /** Widths we eyeball the card at: a phone-ish column and a roomy desktop column. */
 const MOBILE_WIDTH = 400
@@ -103,6 +108,53 @@ export function CanvasPage() {
               <ScoreSpinners />
             </FixtureCardPreview>
           </Box>
+        </Box>
+      </Stack>
+
+      {/* ---- Group navigation candidates (select / create / join) ------------- */}
+      <Typography variant="h5" component="h2" sx={{ mt: 5, mb: 1 }}>
+        Group navigation — 3 options
+      </Typography>
+      <Alert severity="info" sx={{ mb: 2 }}>
+        Candidate replacements for the top-bar group switcher, now covering select + create + join.
+        All three are clickable (sample data, nothing saved): tap the hamburger / title to open each
+        one.
+      </Alert>
+
+      <Stack
+        direction={{ xs: 'column', lg: 'row' }}
+        spacing={3}
+        sx={{ alignItems: 'flex-start' }}
+        useFlexGap
+      >
+        <Box>
+          <Typography variant="overline" color="text.secondary" sx={{ display: 'block', mb: 1 }}>
+            A · Hamburger → drawer
+          </Typography>
+          <HamburgerDrawerPreview />
+          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>
+            Classic nav pattern; room to grow (settings, profile). One extra tap vs. the title.
+          </Typography>
+        </Box>
+
+        <Box>
+          <Typography variant="overline" color="text.secondary" sx={{ display: 'block', mb: 1 }}>
+            B · Title menu (current, enriched)
+          </Typography>
+          <TitleMenuPreview />
+          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>
+            Smallest change from today: avatars + roles in the menu, create/join appended.
+          </Typography>
+        </Box>
+
+        <Box>
+          <Typography variant="overline" color="text.secondary" sx={{ display: 'block', mb: 1 }}>
+            C · Title → bottom sheet
+          </Typography>
+          <BottomSheetPreview />
+          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>
+            Mobile-first: big touch rows + prominent create/join buttons. Less ideal on desktop.
+          </Typography>
         </Box>
       </Stack>
     </Box>

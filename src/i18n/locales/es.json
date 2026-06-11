@@ -28,6 +28,7 @@
   },
   "groupNav": {
     "openMenu": "Abrir menú de grupos",
+    "closeMenu": "Cerrar menú de grupos",
     "yourGroups": "Tus grupos",
     "createGroup": "Crear grupo",
     "joinWithCode": "Unirse con código",

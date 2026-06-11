@@ -28,6 +28,7 @@
   },
   "groupNav": {
     "openMenu": "Open group menu",
+    "closeMenu": "Close group menu",
     "yourGroups": "Your groups",
     "createGroup": "Create group",
     "joinWithCode": "Join with code",

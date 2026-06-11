@@ -109,6 +109,40 @@ describe('GroupNavDrawer', () => {
     await waitFor(() => expect(queryGroupList()).not.toBeInTheDocument())
   })
 
+  // --- ticket 031: the same button toggles, swapping Menu ↔ Close (X) -------
+  it('swaps to an X (close) button while open, with aria-expanded', () => {
+    renderDrawer()
+    const button = screen.getByRole('button', { name: /open group menu/i })
+    expect(button).toHaveAttribute('aria-expanded', 'false')
+    expect(within(button).getByTestId('MenuIcon')).toBeInTheDocument()
+
+    fireEvent.click(button)
+    const closeButton = screen.getByRole('button', { name: /close group menu/i })
+    expect(closeButton).toHaveAttribute('aria-expanded', 'true')
+    expect(within(closeButton).getByTestId('CloseIcon')).toBeInTheDocument()
+  })
+
+  it('clicking the toggle button again closes the drawer', async () => {
+    renderDrawer()
+    openDrawer()
+    expect(getGroupList()).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: /close group menu/i }))
+    await waitFor(() => expect(queryGroupList()).not.toBeInTheDocument())
+  })
+
+  it('renders the drawer BELOW the app bar (z-index) with neutral selected row', () => {
+    renderDrawer()
+    openDrawer()
+    // Drawer paper sits under the app bar (AppShell bar = zIndex.drawer + 1), so the
+    // toggle stays visible and clickable while open.
+    const paper = document.querySelector('.MuiDrawer-paper') as HTMLElement
+    expect(Number(getComputedStyle(paper).zIndex)).toBeLessThanOrEqual(theme.zIndex.drawer)
+    // Selected row: the neutral action.selected token, not the primary-tinted (blue)
+    // default (the theme runs with CSS variables, so the var reference is the proof).
+    const selectedRow = within(getGroupList()).getByRole('button', { name: /alpha/i })
+    expect(getComputedStyle(selectedRow).backgroundColor).toBe('var(--mui-palette-action-selected)')
+  })
+
   // --- rule 2: enterable groups, deduped/sorted, current checked ------------
   it('lists the enterable groups with the current one selected', () => {
     renderDrawer()

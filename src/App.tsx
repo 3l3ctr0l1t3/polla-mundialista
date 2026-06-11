@@ -2,7 +2,7 @@
  * App — auth gate + multi-tenant routing (ticket 012).
  *
  * Auth gate (constitution: signed-out users see only Login):
- *   - while auth is resolving → full-screen LoadingState
+ *   - while auth is resolving → full-screen spinner (FullScreenLoader, ticket 031)
  *   - signed out → LoginPage (Google sign-in)
  *   - signed in → the app (ANY signed-in user; there is no app-level membership gate)
  *
@@ -17,9 +17,8 @@
  * per-group `MembershipGate`, and `/admin` is restricted to that group's admins. The
  * `firestore.rules` remain the real authority for every read/write.
  */
-import Box from '@mui/material/Box'
 import { Routes, Route, Navigate, useParams } from 'react-router-dom'
-import { LoadingState } from './components/states'
+import { FullScreenLoader } from './components/states'
 import { useAuth } from './auth/useAuth'
 import { GroupProvider } from './group/GroupProvider'
 import GroupApp from './group/GroupApp'
@@ -43,19 +42,7 @@ function App() {
   const { user, loading, isSuperAdmin } = useAuth()
 
   if (loading) {
-    return (
-      <Box
-        sx={{
-          minHeight: '100dvh',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          p: 3,
-        }}
-      >
-        <LoadingState rows={1} label="Checking your session" />
-      </Box>
-    )
+    return <FullScreenLoader label="Checking your session" />
   }
 
   // Signed out → Google sign-in.

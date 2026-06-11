@@ -3,7 +3,8 @@
  * SELECT / CREATE / JOIN (ticket 030, Canvas variant A; replaces the 029 GroupSwitcher).
  *
  * The hamburger sits at the far left of the app bar (AppShell's `leadingControl` slot)
- * and opens a temporary Drawer listing the groups the signed-in user can enter
+ * and TOGGLES (ticket 031: Menu ↔ X) a persistent, non-modal Drawer rendered BELOW the
+ * app bar — own Backdrop + Esc handling — listing the groups the signed-in user can enter
  * (owned ∪ approved memberships, deduped, sorted) with avatar initial, name and role;
  * the current group is selected/checked. Picking another navigates to it on the SAME
  * tab. Below a divider: "Create group" (→ /groups/new) and "Join with code" (→ the
@@ -12,10 +13,11 @@
  * Read-only: it only navigates. The drawer paper echoes the app bar's translucent
  * blur using theme tokens only (alpha of `background.paper` + blur).
  */
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect, useCallback } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import IconButton from '@mui/material/IconButton'
 import Drawer from '@mui/material/Drawer'
+import Backdrop from '@mui/material/Backdrop'
 import List from '@mui/material/List'
 import ListItem from '@mui/material/ListItem'
 import ListItemButton from '@mui/material/ListItemButton'
@@ -28,6 +30,7 @@ import Divider from '@mui/material/Divider'
 import TextField from '@mui/material/TextField'
 import { alpha } from '@mui/material/styles'
 import MenuIcon from '@mui/icons-material/Menu'
+import CloseIcon from '@mui/icons-material/Close'
 import AddIcon from '@mui/icons-material/Add'
 import TagIcon from '@mui/icons-material/Tag'
 import CheckIcon from '@mui/icons-material/Check'
@@ -90,10 +93,21 @@ export function GroupNavDrawer() {
     return rolesById.get(g.groupId) === 'admin' ? t('common.admin') : t('common.member')
   }
 
-  const close = () => {
+  const close = useCallback(() => {
     setOpen(false)
     setFilter('')
-  }
+  }, [])
+
+  // The drawer is PERSISTENT (non-modal) so the app-bar toggle stays visible,
+  // clickable AND accessible while open — so Esc must be handled here.
+  useEffect(() => {
+    if (!open) return
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') close()
+    }
+    document.addEventListener('keydown', onKeyDown)
+    return () => document.removeEventListener('keydown', onKeyDown)
+  }, [open, close])
 
   const handlePick = (g: Group) => {
     close()
@@ -102,20 +116,27 @@ export function GroupNavDrawer() {
 
   return (
     <>
+      {/* The same button TOGGLES the drawer (ticket 031): Menu icon to open, X to close.
+          The drawer sits BELOW the app bar (zIndex), so this button stays clickable. */}
       <IconButton
         edge="start"
         color="inherit"
-        aria-label={t('groupNav.openMenu')}
-        onClick={() => setOpen(true)}
+        aria-label={open ? t('groupNav.closeMenu') : t('groupNav.openMenu')}
+        aria-expanded={open}
+        onClick={() => (open ? close() : setOpen(true))}
         sx={{ mr: 1 }}
       >
-        <MenuIcon />
+        {open ? <CloseIcon /> : <MenuIcon />}
       </IconButton>
 
+      {/* Dim the page below the drawer; clicking it closes. Sits under the drawer,
+          which itself sits under the app bar (AppShell's bar is zIndex.drawer + 1). */}
+      <Backdrop open={open} onClick={close} sx={(theme) => ({ zIndex: theme.zIndex.drawer - 1 })} />
+
       <Drawer
+        variant="persistent"
         anchor="left"
         open={open}
-        onClose={close}
         slotProps={{
           paper: {
             sx: (theme) => ({
@@ -123,6 +144,10 @@ export function GroupNavDrawer() {
               maxWidth: '85vw',
               display: 'flex',
               flexDirection: 'column',
+              // Below the app bar (bar = zIndex.drawer + 1) so the toggle stays usable.
+              zIndex: theme.zIndex.drawer,
+              // Clear the fixed app bar (56/64px) + extra breathing room above the options.
+              pt: { xs: 9, sm: 10 },
               // Echo the app bar's translucent-blur treatment (theme tokens only).
               backgroundColor: alpha(theme.palette.background.paper, 0.85),
               backgroundImage: 'none',
@@ -162,6 +187,11 @@ export function GroupNavDrawer() {
                 selected={selected}
                 aria-current={selected ? 'true' : undefined}
                 onClick={() => handlePick(g)}
+                // Neutral selection — override MUI's primary-tinted (blue) selected wash.
+                sx={{
+                  '&.Mui-selected': { bgcolor: 'action.selected' },
+                  '&.Mui-selected:hover': { bgcolor: 'action.selected' },
+                }}
               >
                 <ListItemAvatar sx={{ minWidth: 44 }}>
                   <Avatar

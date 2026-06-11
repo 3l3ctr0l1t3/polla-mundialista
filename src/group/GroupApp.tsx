@@ -20,7 +20,7 @@ import {
   myGroupsNavItem,
   CANVAS_NAV_ITEM,
 } from '../components/navItems'
-import { LoadingState, ErrorState } from '../components/states'
+import { FullScreenLoader, ErrorState } from '../components/states'
 import { useGroup } from './useGroup'
 import { useAuth } from '../auth/useAuth'
 import MembershipGate from '../pages/MembershipGate'
@@ -42,19 +42,7 @@ export function GroupApp() {
   const showCanvas = isSuperAdmin || import.meta.env.DEV
 
   if (loading) {
-    return (
-      <Box
-        sx={{
-          minHeight: '100dvh',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          p: 3,
-        }}
-      >
-        <LoadingState rows={1} label={t('states.loadingGroup')} />
-      </Box>
-    )
+    return <FullScreenLoader label={t('states.loadingGroup')} />
   }
 
   if (error || !group) {

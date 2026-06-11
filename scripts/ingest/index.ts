@@ -365,9 +365,28 @@ async function main(): Promise<void> {
   const client = new FootballDataClient()
 
   console.log('[ingest] fetching matches + standings…')
-  const [matchesRes, standingsRes] = [await client.getMatches(), await client.getStandings()]
+  const [matchesRes, finishedRes, standingsRes] = [
+    await client.getMatches(),
+    await client.getFinishedMatches(),
+    await client.getStandings(),
+  ]
 
-  const matches = matchesRes.matches.map((m) => mapMatch(m, now))
+  // Overlay authoritative FINISHED scores. The free tier can serve a finished
+  // match's full-time score on the status-filtered endpoint a polling cycle (or
+  // more) before it propagates to the unfiltered list. Patch the main list's entry
+  // with the finished status+score whenever the filtered endpoint has a real
+  // scoreline the main list is still missing — so grading isn't needlessly delayed.
+  const finishedById = new Map(finishedRes.matches.map((m) => [m.id, m]))
+  const mergedRaw = matchesRes.matches.map((m) => {
+    const fin = finishedById.get(m.id)
+    if (fin && fin.score?.fullTime?.home != null && fin.score?.fullTime?.away != null) {
+      const mainHasScore = m.score?.fullTime?.home != null && m.score?.fullTime?.away != null
+      if (!mainHasScore) return { ...m, status: fin.status, score: fin.score }
+    }
+    return m
+  })
+
+  const matches = mergedRaw.map((m) => mapMatch(m, now))
   console.log(`[ingest] upserting ${matches.length} matches…`)
   await upsertMatches(db, matches)
 

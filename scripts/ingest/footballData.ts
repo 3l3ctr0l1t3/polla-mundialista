@@ -60,6 +60,21 @@ export class FootballDataClient {
     return this.request<FdMatchesResponse>(`/competitions/${COMPETITION}/matches?season=${SEASON}`)
   }
 
+  /**
+   * GET only the FINISHED WC matches for the season.
+   *
+   * The free tier can publish a freshly-finished match's full-time score on this
+   * status-filtered endpoint BEFORE that score propagates to the unfiltered
+   * `getMatches()` list (observed 2026-06-11: the main list showed FINISHED with a
+   * `null` score while this query already returned the real scoreline). The caller
+   * overlays these authoritative scores so grading isn't delayed a polling cycle.
+   */
+  async getFinishedMatches(): Promise<FdMatchesResponse> {
+    return this.request<FdMatchesResponse>(
+      `/competitions/${COMPETITION}/matches?season=${SEASON}&status=FINISHED`,
+    )
+  }
+
   /** GET WC standings for the configured season. */
   async getStandings(): Promise<FdStandingsResponse> {
     return this.request<FdStandingsResponse>(

@@ -132,6 +132,7 @@
     "earnedPoints": "Earned {{count}} points",
     "openDialog": "Predictions",
     "yourPrediction": "Your prediction {{home}}–{{away}}",
+    "noPredictionLocked": "You didn't make a prediction for this match",
     "lazyLockHint": "Locks 10 min before kickoff",
     "strictGroupLock": "Strict: all group-stage picks lock {{time}}",
     "strictKnockoutLock": "Strict: all knockout picks lock {{time}}"

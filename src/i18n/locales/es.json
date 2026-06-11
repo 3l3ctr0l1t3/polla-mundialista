@@ -132,6 +132,7 @@
     "earnedPoints": "Ganó {{count}} puntos",
     "openDialog": "Predicciones",
     "yourPrediction": "Tu predicción {{home}}–{{away}}",
+    "noPredictionLocked": "No hiciste pronóstico para este partido",
     "lazyLockHint": "Se cierra 10 min antes del inicio",
     "strictGroupLock": "Estricto: las predicciones de fase de grupos se cierran {{time}}",
     "strictKnockoutLock": "Estricto: las predicciones de eliminatorias se cierran {{time}}"

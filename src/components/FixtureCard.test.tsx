@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
-import { render, screen, waitFor, fireEvent } from '@testing-library/react'
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { render, screen, waitFor, fireEvent, act } from '@testing-library/react'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { ThemeProvider } from '@mui/material/styles'
 import { theme } from '../theme/theme'
 import type { Match, Prediction, PredictionMode } from '../shared/types'
@@ -156,12 +156,13 @@ describe('FixtureCard', () => {
     expect(options).toEqual({ merge: true })
   })
 
-  it('disables the steppers + Save at/after kickoff', () => {
+  it('swaps the dead inputs for the locked read-only state at/after the lock (ticket 027)', () => {
     renderCard(<FixtureCard gid="g1" match={makeMatch()} now={afterKickoff} />)
-    // The +/- controls and Save are disabled when locked.
-    expect(screen.getByLabelText('Increase HOM goals')).toBeDisabled()
-    expect(screen.getByLabelText('Increase AWY goals')).toBeDisabled()
-    expect(screen.getByRole('button', { name: /save prediction/i })).toBeDisabled()
+    // No steppers and no Save once locked — the reveal action replaces them.
+    expect(screen.queryByLabelText('Increase HOM goals')).toBeNull()
+    expect(screen.queryByLabelText('Increase AWY goals')).toBeNull()
+    expect(screen.queryByRole('button', { name: /save prediction/i })).toBeNull()
+    expect(screen.getByRole('button', { name: /predictions/i })).toBeInTheDocument()
   })
 
   it('shows the score + the viewer own prediction (no steppers) when finished', () => {
@@ -202,6 +203,157 @@ describe('FixtureCard', () => {
     expect(dialogMock).toHaveBeenLastCalledWith(
       expect.objectContaining({ open: false, kickedOff: false }),
     )
+  })
+
+  // --- ticket 027: locked-but-not-kicked-off (lazy window) — spec rules 2 + 4 ----------
+
+  describe('locked, not kicked off (lazy window)', () => {
+    // Inside the lazy locked window: past `kickoff − 10min`, before kickoff itself.
+    const duringLockedWindow = () => KICKOFF_MS - 5 * 60 * 1000
+
+    it('renders no steppers and no Save — only the reveal button (rule 2)', () => {
+      renderCard(<FixtureCard gid="g1" match={makeMatch()} now={duringLockedWindow} />)
+      expect(screen.queryByRole('button', { name: /save prediction/i })).toBeNull()
+      expect(screen.queryByRole('button', { name: /update prediction/i })).toBeNull()
+      expect(screen.queryByLabelText('Increase HOM goals')).toBeNull()
+      expect(screen.queryByLabelText('Decrease HOM goals')).toBeNull()
+      expect(screen.queryByLabelText('HOM goals')).toBeNull()
+      expect(screen.getByRole('button', { name: /predictions/i })).toBeInTheDocument()
+      // Top-right keeps the countdown component, now showing its "Locked" chip.
+      expect(screen.getByText('Locked')).toBeInTheDocument()
+    })
+
+    it('opens the dialog still gated pre-kickoff (kickedOff: false → placeholder, no query)', () => {
+      renderCard(<FixtureCard gid="g1" match={makeMatch()} now={duringLockedWindow} />)
+      expect(dialogMock).toHaveBeenLastCalledWith(
+        expect.objectContaining({ open: false, kickedOff: false }),
+      )
+      fireEvent.click(screen.getByRole('button', { name: /predictions/i }))
+      expect(dialogMock).toHaveBeenLastCalledWith(
+        expect.objectContaining({ open: true, kickedOff: false }),
+      )
+    })
+
+    it('shows the viewer own pick read-only on the card (rule 4)', () => {
+      renderCard(
+        <FixtureCard
+          gid="g1"
+          match={makeMatch()}
+          existing={existingPred(2, 1)}
+          now={duringLockedWindow}
+        />,
+      )
+      expect(screen.getByLabelText('Predicted 2 to 1')).toBeInTheDocument()
+      // Read-only: still no way to edit or save.
+      expect(screen.queryByLabelText('Increase HOM goals')).toBeNull()
+      expect(screen.queryByRole('button', { name: /save prediction/i })).toBeNull()
+    })
+
+    it('shows a localized "no prediction" indication when the viewer saved none (rule 4)', () => {
+      renderCard(<FixtureCard gid="g1" match={makeMatch()} now={duringLockedWindow} />)
+      expect(screen.getByText('—')).toBeInTheDocument()
+      expect(screen.getByText("You didn't make a prediction for this match")).toBeInTheDocument()
+    })
+  })
+
+  // --- ticket 027: strict mode locks days before kickoff — spec rule 5 -----------------
+
+  describe('locked, not kicked off (strict window, days before kickoff)', () => {
+    const DAY_MS = 24 * 60 * 60 * 1000
+
+    beforeEach(() => {
+      useGroupMock.mockReturnValue({ group: { mode: 'strict' } })
+      useTournamentConfigMock.mockReturnValue({
+        cutoffs: {
+          // Group-stage window closed a week before this match's own kickoff.
+          firstCupMatchKickoffMs: KICKOFF_MS - 7 * DAY_MS,
+          firstKnockoutKickoffMs: KICKOFF_MS + 14 * DAY_MS,
+        },
+        loading: false,
+      })
+    })
+
+    // Days past the strict cutoff, but still days BEFORE the match's own kickoff.
+    const daysBeforeKickoff = () => KICKOFF_MS - 5 * DAY_MS
+
+    it('renders the locked state (no inputs, reveal gated pre-kickoff) far from kickoff', () => {
+      renderCard(<FixtureCard gid="g1" match={makeMatch()} now={daysBeforeKickoff} />)
+      expect(screen.queryByRole('button', { name: /save prediction/i })).toBeNull()
+      expect(screen.queryByLabelText('Increase HOM goals')).toBeNull()
+      fireEvent.click(screen.getByRole('button', { name: /predictions/i }))
+      expect(dialogMock).toHaveBeenLastCalledWith(
+        expect.objectContaining({ open: true, kickedOff: false }),
+      )
+    })
+
+    it('shows the own pick / no-pick indication in the strict window too', () => {
+      const { unmount } = renderCard(
+        <FixtureCard
+          gid="g1"
+          match={makeMatch()}
+          existing={existingPred(0, 3)}
+          now={daysBeforeKickoff}
+        />,
+      )
+      expect(screen.getByLabelText('Predicted 0 to 3')).toBeInTheDocument()
+      unmount()
+
+      renderCard(<FixtureCard gid="g1" match={makeMatch()} now={daysBeforeKickoff} />)
+      expect(screen.getByText("You didn't make a prediction for this match")).toBeInTheDocument()
+    })
+  })
+
+  // --- ticket 027: fully reactive boundary crossings — spec rule 9 ---------------------
+
+  describe('reactive boundary crossings (no refresh)', () => {
+    beforeEach(() => {
+      vi.useFakeTimers()
+    })
+
+    afterEach(() => {
+      vi.useRealTimers()
+    })
+
+    it('flips editable → locked on its own when the clock crosses the lock instant', () => {
+      vi.setSystemTime(LOCK_MS - 1000)
+      const now = () => Date.now()
+      renderCard(<FixtureCard gid="g1" match={makeMatch()} now={now} />)
+
+      // Still editable just before the lock.
+      expect(screen.getByRole('button', { name: /save prediction/i })).toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: /predictions/i })).toBeNull()
+
+      act(() => {
+        vi.advanceTimersByTime(1000)
+      })
+
+      // Crossed the lock: inputs gone, reveal button in — no remount, no interaction.
+      expect(screen.queryByRole('button', { name: /save prediction/i })).toBeNull()
+      expect(screen.queryByLabelText('Increase HOM goals')).toBeNull()
+      expect(screen.getByRole('button', { name: /predictions/i })).toBeInTheDocument()
+    })
+
+    it('flips an OPEN dialog to kickedOff: true when the clock crosses kickoff', () => {
+      vi.setSystemTime(KICKOFF_MS - 1000)
+      const now = () => Date.now()
+      renderCard(<FixtureCard gid="g1" match={makeMatch()} now={now} />)
+
+      // Locked window: open the dialog — still gated (placeholder, no query).
+      fireEvent.click(screen.getByRole('button', { name: /predictions/i }))
+      expect(dialogMock).toHaveBeenLastCalledWith(
+        expect.objectContaining({ open: true, kickedOff: false }),
+      )
+
+      act(() => {
+        vi.advanceTimersByTime(1000)
+      })
+
+      // Kickoff crossed: the SAME open dialog now receives kickedOff: true, which lets
+      // its `useMatchPredictions(…, open && kickedOff)` attach the live listener.
+      expect(dialogMock).toHaveBeenLastCalledWith(
+        expect.objectContaining({ open: true, kickedOff: true }),
+      )
+    })
   })
 
   it('shows the strict group-window lock hint as a tooltip on the Locks-in chip', async () => {

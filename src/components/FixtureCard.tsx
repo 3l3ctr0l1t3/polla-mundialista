@@ -7,9 +7,16 @@
  * prediction/result · away (name above flag) — the team name stacked over its flag at every
  * breakpoint, with the caption + status above it.
  *
- * UPCOMING (not final, not in-play, real teams): renders the two centered goal steppers +
- * Save/Update button driven by `useSavePrediction` (the ONE write path — never points), with
- * the kickoff lock + countdown chip.
+ * UPCOMING + EDITABLE (not final, not in-play, real teams, pre-lock): renders the two
+ * centered goal steppers + Save/Update button driven by `useSavePrediction` (the ONE write
+ * path — never points), with the kickoff lock + countdown chip.
+ *
+ * UPCOMING + LOCKED (ticket 027): once the mode-aware lock instant passes (lazy: kickoff −
+ * 10 min; strict: the tournament window cutoff) the dead steppers/Save are replaced by the
+ * viewer's OWN pick read-only (or a localized "no prediction" note) and the SAME "See group
+ * predictions" button as the live/finished state — the dialog keeps its rules-gated
+ * "reveals at kickoff" placeholder until kickoff. `useBoundaryTick` re-renders the card at
+ * the lock + kickoff instants so both swaps happen live, with no page refresh.
  *
  * LIVE/FINISHED: shows the result score, the viewer's OWN prediction subtly, and a button
  * that opens `MatchPredictionsDialog` to reveal everyone's picks (rules-gated reveal-at-kickoff).
@@ -40,6 +47,7 @@ import type { Match, Team, Prediction } from '../shared/types'
 import { isTbdTeam } from '../hooks/matchGrouping'
 import { useTeamName } from '../i18n/useTeamName'
 import { useSavePrediction, toGoals } from '../hooks/useSavePrediction'
+import { useBoundaryTick } from '../hooks/useBoundaryTick'
 import { useGroup } from '../group/useGroup'
 import { useTournamentConfig } from '../hooks/useTournamentConfig'
 import { effectiveMode, lockTimeMs } from '../shared/predictionLock'
@@ -187,7 +195,7 @@ export function FixtureCard({ gid, match, existing, now }: FixtureCardProps) {
 
   const played = score.home !== null && score.away !== null
   const showResult = played || status === 'IN_PLAY' || status === 'PAUSED'
-  const editable =
+  const upcoming =
     !FINAL.has(status) && status !== 'IN_PLAY' && status !== 'PAUSED' && !isTbdTeam(homeTeam)
 
   const {
@@ -202,6 +210,16 @@ export function FixtureCard({ gid, match, existing, now }: FixtureCardProps) {
     dismissSnack,
     save,
   } = useSavePrediction(gid, match, existing, now, mode, cutoffs)
+
+  // The card's fourth state (ticket 027): locked but not yet kicked off — own pick
+  // read-only + the reveal button instead of dead disabled inputs.
+  const editable = upcoming && !locked
+  const lockedUpcoming = upcoming && locked
+
+  // Re-render exactly when the server-corrected clock crosses the lock and kickoff
+  // instants, so `editable → lockedUpcoming` and the dialog's `kickedOff` flip live
+  // without a refresh (one cheap chained timer; no per-second card re-render).
+  useBoundaryTick(now, [lockMs, kickoff.toMillis()])
 
   // The lock-timing hint shown as a tooltip on the "Locks in" chip. Strict groups lock the
   // whole group/knockout window (not this match's kickoff); lazy groups lock 10 min before.
@@ -257,7 +275,9 @@ export function FixtureCard({ gid, match, existing, now }: FixtureCardProps) {
             <Typography variant="caption" color="text.secondary" noWrap sx={{ minWidth: 0 }}>
               {caption}
             </Typography>
-            {editable ? (
+            {/* Upcoming (editable OR locked): the countdown chip — past `lockMs` it
+                already renders its "Locked" chip, the right signal for both. */}
+            {upcoming ? (
               <CountdownToKickoff kickoffMs={lockMs} now={now} tooltip={lockHint} />
             ) : (
               statusChip
@@ -319,6 +339,42 @@ export function FixtureCard({ gid, match, existing, now }: FixtureCardProps) {
                 >
                   {score.home}&nbsp;–&nbsp;{score.away}
                 </Typography>
+              ) : lockedUpcoming ? (
+                // Locked, not kicked off: the viewer's OWN pick read-only — secondary
+                // color so it can't be mistaken for a result — or a dash when none.
+                existing ? (
+                  <Typography
+                    component="p"
+                    aria-label={t('predictions.predicted', {
+                      home: existing.homeGoals,
+                      away: existing.awayGoals,
+                    })}
+                    sx={{
+                      fontWeight: 800,
+                      fontVariantNumeric: 'tabular-nums',
+                      fontSize: '1.6rem',
+                      whiteSpace: 'nowrap',
+                      color: 'text.secondary',
+                    }}
+                  >
+                    {existing.homeGoals}&nbsp;–&nbsp;{existing.awayGoals}
+                  </Typography>
+                ) : (
+                  // The localized "no prediction" caption below carries the meaning.
+                  <Typography
+                    component="p"
+                    aria-hidden
+                    sx={{
+                      fontWeight: 800,
+                      fontVariantNumeric: 'tabular-nums',
+                      fontSize: '1.6rem',
+                      whiteSpace: 'nowrap',
+                      color: 'text.secondary',
+                    }}
+                  >
+                    —
+                  </Typography>
+                )
               ) : (
                 <Typography
                   variant="body2"
@@ -354,6 +410,14 @@ export function FixtureCard({ gid, match, existing, now }: FixtureCardProps) {
             </Button>
           )}
 
+          {/* Locked, no pick saved: explain the dash — copy stays neutral because a
+              strict group can lock days before this match's kickoff. */}
+          {lockedUpcoming && !existing && (
+            <Typography variant="caption" sx={{ color: 'text.secondary', letterSpacing: 0.3 }}>
+              {t('predictions.noPredictionLocked')}
+            </Typography>
+          )}
+
           {/* Live/finished: surface the viewer's own prediction subtly. */}
           {showResult && existing && (
             <Typography variant="caption" sx={{ color: 'text.secondary', letterSpacing: 0.3 }}>
@@ -366,8 +430,10 @@ export function FixtureCard({ gid, match, existing, now }: FixtureCardProps) {
         </Stack>
       </CardContent>
 
-      {/* Live/finished: reveal everyone's picks (rules-gated reveal-at-kickoff). */}
-      {showResult && (
+      {/* Locked or live/finished: reveal everyone's picks — one shared block, ONE dialog
+          instance. Pre-kickoff the dialog shows its rules-gated "reveals at kickoff"
+          placeholder and issues no query (`kickedOff` gate, ticket 013). */}
+      {(showResult || lockedUpcoming) && (
         <>
           <CardActions sx={{ pt: 0, px: 2, pb: 1.5, justifyContent: 'center' }}>
             <Button size="small" startIcon={<GroupsIcon />} onClick={() => setDialogOpen(true)}>

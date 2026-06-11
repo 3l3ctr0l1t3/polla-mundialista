@@ -24,7 +24,7 @@ import { LoadingState, ErrorState } from '../components/states'
 import { useGroup } from './useGroup'
 import { useAuth } from '../auth/useAuth'
 import MembershipGate from '../pages/MembershipGate'
-import { GroupSwitcher } from '../components/GroupSwitcher'
+import { GroupNavDrawer } from '../components/GroupNavDrawer'
 import FixturesPage from '../pages/FixturesPage'
 import LeaderboardPage from '../pages/LeaderboardPage'
 import RulesPage from '../pages/RulesPage'
@@ -95,7 +95,7 @@ export function GroupApp() {
   return (
     <AppShell
       title={group.name}
-      titleControl={<GroupSwitcher />}
+      leadingControl={<GroupNavDrawer />}
       navItems={navItems}
       selectedKey={selectedKey}
       onNavigate={handleNavigate}

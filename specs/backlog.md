@@ -35,6 +35,7 @@ Dependency order: 001 → 002 → 003 → (004, 006 parallel) → 005 → 007 �
 | 027 | Locked fixture card offers "See group predictions" | ✅ | 013, 018, 019 | react-mui-builder |
 | 028 | Mobile bottom-nav: horizontal scroll so all destinations are reachable (bug fix) | ✅ | 009, 026 | react-mui-builder |
 | 029 | Group switcher in the top app bar (click the group name to switch groups) | ✅ | 012, 028 | react-mui-builder |
+| 030 | Hamburger group drawer (select · create · join, supersedes 029's title menu) | ✅ | 012, 029 | react-mui-builder |
 
 > 012 restructures predictions/leaderboard/membership to be **per-group** (supersedes the single-pool
 > parts of 005/007/011); matches/standings/config stay global. Built in phases A–D (see 012/plan.md).

@@ -10,6 +10,7 @@
     "you": "You",
     "owner": "Owner",
     "admin": "Admin",
+    "member": "Member",
     "unnamed": "Unnamed"
   },
   "nav": {
@@ -25,9 +26,11 @@
     "primaryNav": "Primary navigation",
     "primary": "Primary"
   },
-  "groupSwitcher": {
-    "trigger": "Switch group — current: {{name}}",
-    "menuLabel": "Your groups",
+  "groupNav": {
+    "openMenu": "Open group menu",
+    "yourGroups": "Your groups",
+    "createGroup": "Create group",
+    "joinWithCode": "Join with code",
     "searchPlaceholder": "Search groups",
     "noMatches": "No groups match"
   },

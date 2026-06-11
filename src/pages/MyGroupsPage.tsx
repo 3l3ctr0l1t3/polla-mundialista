@@ -18,33 +18,20 @@ import CardActionArea from '@mui/material/CardActionArea'
 import CardContent from '@mui/material/CardContent'
 import Chip from '@mui/material/Chip'
 import Avatar from '@mui/material/Avatar'
-import TextField from '@mui/material/TextField'
-import Dialog from '@mui/material/Dialog'
-import DialogTitle from '@mui/material/DialogTitle'
-import DialogContent from '@mui/material/DialogContent'
-import DialogActions from '@mui/material/DialogActions'
 import AddIcon from '@mui/icons-material/Add'
 import LinkIcon from '@mui/icons-material/Link'
 import GroupsIcon from '@mui/icons-material/Groups'
 import HourglassTopIcon from '@mui/icons-material/HourglassTop'
 import LogoutIcon from '@mui/icons-material/Logout'
 import ShieldIcon from '@mui/icons-material/Shield'
-import { Link as RouterLink, useNavigate } from 'react-router-dom'
+import { Link as RouterLink } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { signOutUser } from '../firebase/auth'
 import { useAuth } from '../auth/useAuth'
 import { useMyGroups, type JoinedGroup } from '../hooks/useMyGroups'
 import { LoadingState, EmptyState, ErrorState } from '../components/states'
+import { JoinGroupDialog } from '../components/JoinGroupDialog'
 import type { Group } from '../shared/types'
-
-/** Parse a pasted invite link or raw id into a group id; '' if none found. */
-function parseGid(input: string): string {
-  const trimmed = input.trim()
-  if (!trimmed) return ''
-  // Accept a full /join/:gid URL or path, or a bare id.
-  const match = trimmed.match(/join\/([^/?#]+)/)
-  return match ? match[1] : trimmed
-}
 
 function GroupCard({ group, badge }: { group: Group; badge?: string }) {
   return (
@@ -106,17 +93,7 @@ export function MyGroupsPage() {
   const { t } = useTranslation()
   const { owned, approved, pending, loading, error } = useMyGroups()
   const { isSuperAdmin } = useAuth()
-  const navigate = useNavigate()
   const [joinOpen, setJoinOpen] = useState(false)
-  const [joinInput, setJoinInput] = useState('')
-
-  const handleJoin = () => {
-    const gid = parseGid(joinInput)
-    if (!gid) return
-    setJoinOpen(false)
-    setJoinInput('')
-    navigate(`/join/${gid}`)
-  }
 
   const hasAny = owned.length > 0 || approved.length > 0 || pending.length > 0
 
@@ -229,28 +206,7 @@ export function MyGroupsPage() {
         </Stack>
       )}
 
-      <Dialog open={joinOpen} onClose={() => setJoinOpen(false)} fullWidth maxWidth="xs">
-        <DialogTitle>{t('groups.joinDialogTitle')}</DialogTitle>
-        <DialogContent>
-          <TextField
-            autoFocus
-            fullWidth
-            margin="dense"
-            label={t('groups.inviteOrId')}
-            value={joinInput}
-            onChange={(e) => setJoinInput(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') handleJoin()
-            }}
-          />
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setJoinOpen(false)}>{t('common.cancel')}</Button>
-          <Button variant="contained" onClick={handleJoin} disabled={!parseGid(joinInput)}>
-            {t('common.continue')}
-          </Button>
-        </DialogActions>
-      </Dialog>
+      <JoinGroupDialog open={joinOpen} onClose={() => setJoinOpen(false)} />
     </Box>
   )
 }

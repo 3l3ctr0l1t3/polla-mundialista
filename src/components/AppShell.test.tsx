@@ -74,6 +74,17 @@ describe('AppShell', () => {
     expect(screen.getByRole('button', { name: 'Switch group' })).toBeInTheDocument()
     expect(screen.queryByRole('heading', { name: 'Fallback' })).not.toBeInTheDocument()
   })
+
+  it('renders the decorative soccer icon by default in the leading slot', () => {
+    renderShell(<AppShell />)
+    expect(screen.getByTestId('SportsSoccerIcon')).toBeInTheDocument()
+  })
+
+  it('renders leadingControl instead of the soccer icon when provided (ticket 030)', () => {
+    renderShell(<AppShell leadingControl={<button type="button">Open group menu</button>} />)
+    expect(screen.getByRole('button', { name: 'Open group menu' })).toBeInTheDocument()
+    expect(screen.queryByTestId('SportsSoccerIcon')).not.toBeInTheDocument()
+  })
 })
 
 describe('AppShell — mobile bottom-nav scroll (ticket 028)', () => {

@@ -30,6 +30,11 @@ export interface AppShellProps {
    * document/accessible label fallback.
    */
   titleControl?: ReactNode
+  /**
+   * Interactive control rendered at the far left of the app bar (e.g. a hamburger
+   * menu). When provided, it replaces the decorative soccer icon.
+   */
+  leadingControl?: ReactNode
   /** Navigation destinations. Defaults to the in-group destinations. */
   navItems?: NavItem[]
   /** Currently selected nav item key (controlled). */
@@ -52,6 +57,7 @@ export function AppShell({
   children,
   title,
   titleControl,
+  leadingControl,
   navItems,
   selectedKey,
   onNavigate,
@@ -194,7 +200,7 @@ export function AppShell({
     <Box sx={{ minHeight: '100dvh' }}>
       <AppBar position="fixed" sx={{ zIndex: (theme) => theme.zIndex.drawer + 1 }}>
         <Toolbar>
-          <SportsSoccerIcon sx={{ mr: 1 }} aria-hidden />
+          {leadingControl ?? <SportsSoccerIcon sx={{ mr: 1 }} aria-hidden />}
           <Box sx={{ flexGrow: 1, minWidth: 0 }}>
             {titleControl ?? (
               <Typography variant="h6" component="h1" noWrap>

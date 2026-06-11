@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { useId } from 'react'
+import { useId, useRef, useEffect } from 'react'
 import AppBar from '@mui/material/AppBar'
 import Toolbar from '@mui/material/Toolbar'
 import Typography from '@mui/material/Typography'
@@ -51,6 +51,13 @@ export function AppShell({ children, title, navItems, selectedKey, onNavigate }:
 
   const resolvedTitle = title ?? t('common.appName')
   const items = navItems ?? defaultNavItems(t)
+
+  // Keep the active mobile-bar destination visible when there are more items than
+  // fit the viewport (the bar scrolls horizontally — see `bottomBar`).
+  const selectedActionRef = useRef<HTMLButtonElement | null>(null)
+  useEffect(() => {
+    selectedActionRef.current?.scrollIntoView({ inline: 'center', block: 'nearest' })
+  }, [selectedKey])
 
   const handleSelect = (key: string) => {
     onNavigate?.(key)
@@ -135,30 +142,44 @@ export function AppShell({ children, title, navItems, selectedKey, onNavigate }:
       elevation={3}
       sx={{ position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: theme.zIndex.appBar }}
     >
-      <BottomNavigation
-        showLabels
-        value={selectedKey ?? false}
-        onChange={(_, key: string) => handleSelect(key)}
-        aria-label={t('appShell.primaryNav')}
+      {/* Horizontally scrollable strip: with many destinations the bar overflows and
+          can be swiped sideways instead of squishing the actions. Scrollbar hidden. */}
+      <Box
+        sx={{
+          overflowX: 'auto',
+          overflowY: 'hidden',
+          WebkitOverflowScrolling: 'touch',
+          scrollbarWidth: 'none',
+          msOverflowStyle: 'none',
+          '&::-webkit-scrollbar': { display: 'none' },
+        }}
       >
-        {items.map((item) => (
-          <BottomNavigationAction
-            key={item.key}
-            value={item.key}
-            label={item.label}
-            icon={item.icon}
-          />
-        ))}
-      </BottomNavigation>
+        <BottomNavigation
+          showLabels
+          value={selectedKey ?? false}
+          onChange={(_, key: string) => handleSelect(key)}
+          aria-label={t('appShell.primaryNav')}
+          sx={{ width: 'max-content', minWidth: '100%', justifyContent: 'flex-start' }}
+        >
+          {items.map((item) => (
+            <BottomNavigationAction
+              key={item.key}
+              ref={item.key === selectedKey ? selectedActionRef : undefined}
+              value={item.key}
+              label={item.label}
+              icon={item.icon}
+              // Keep a readable width and let the row overflow (scroll) rather than shrink.
+              sx={{ flex: '1 0 auto', minWidth: 76, maxWidth: 168 }}
+            />
+          ))}
+        </BottomNavigation>
+      </Box>
     </Paper>
   )
 
   return (
     <Box sx={{ minHeight: '100dvh' }}>
-      <AppBar
-        position="fixed"
-        sx={{ zIndex: (theme) => theme.zIndex.drawer + 1 }}
-      >
+      <AppBar position="fixed" sx={{ zIndex: (theme) => theme.zIndex.drawer + 1 }}>
         <Toolbar>
           <SportsSoccerIcon sx={{ mr: 1 }} aria-hidden />
           <Typography variant="h6" component="h1" noWrap sx={{ flexGrow: 1 }}>

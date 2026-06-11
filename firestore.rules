@@ -8,6 +8,10 @@ rules_version = '2';
 //   - per-group leaderboards (groups/{gid}/leaderboard) are likewise admin-SDK-only.
 //   - the browser writes ONLY the signed-in user's own prediction, in a group they
 //     belong to, and ONLY before kickoff.
+//   - ORPHAN CLEANUP amendment (2026-06-11, constitution §3 carve-out): a group ADMIN
+//     may additionally DELETE (never create/update) prediction docs whose author is NO
+//     LONGER a participant of the group (member-removal cleanup); deleting a nonexistent
+//     prediction is a permitted no-op. See the predictions delete rule.
 //
 // AUTHORITATIVE KICKOFF LOCK (constitution §4, AMENDED by ticket 019):
 //   prediction create/update is allowed only while `request.time < match.kickoff − 10min`,
@@ -90,6 +94,15 @@ service cloud.firestore {
           && memberDocData(gid).status == 'approved'
           && memberDocData(gid).role == 'admin'
         );
+    }
+
+    // True iff `uid` is still a participant of group `gid`: the implicit owner, or ANY
+    // member doc (any status — pending/rejected joiners are protected from cleanup too).
+    // COST: 1 get() on groups/{gid} (de-duped with isOwner/isGroupAdmin within the same
+    // evaluation) + 1 exists() on groups/{gid}/members/{uid}.
+    function isParticipant(gid, uid) {
+      return groupData(gid).ownerUid == uid
+        || exists(/databases/$(database)/documents/groups/$(gid)/members/$(uid));
     }
 
     // ---- superadmin (app-level god-view; ticket 014) ------------------------
@@ -267,8 +280,10 @@ service cloud.firestore {
       }
 
       // ---- groups/{gid}/predictions -----------------------------------------
-      // Doc id is `{uid}_{matchId}`. Owner-only read/write. Kickoff-locked against the
+      // Doc id is `{uid}_{matchId}`. Owner-only write. Kickoff-locked against the
       // GLOBAL matches/{matchId} doc. No points/breakdown tampering. Group members only.
+      // Orphan cleanup (2026-06-11): admins may DELETE (never create/update) predictions
+      // of NON-participants; deleting a nonexistent prediction is a permitted no-op.
 
       match /predictions/{predId} {
         // Reveal-at-kickoff (ticket 013): a group member reads their OWN prediction
@@ -298,7 +313,19 @@ service cloud.firestore {
           && predictionShapeValid()
           && predictionWindowOpen(gid, request.resource.data.matchId);
 
-        allow delete: if false;
+        // ORPHAN CLEANUP (amendment 2026-06-11, constitution §3 carve-out): when an
+        // admin removes a member, the admin's browser also deletes that ex-member's
+        // prediction docs. A group ADMIN may DELETE a prediction ONLY when its author
+        // is NO LONGER a participant: not the implicit owner AND no member doc of ANY
+        // status (pending/rejected joiners stay protected). `resource == null` (the doc
+        // doesn't exist) is a permitted no-op so the client can blind-delete
+        // `{uid}_{matchId}` for every match WITHOUT any new read access — the
+        // reveal-at-kickoff READ rule above is untouched. Participants (including the
+        // author themselves) still can NEVER delete a live prediction.
+        // COST: isGroupAdmin(gid) ≤2 get()s; an existing doc adds 1 exists() on the
+        // author's member doc (the group-doc get() is de-duped) — ~3 lookups worst case.
+        allow delete: if isGroupAdmin(gid)
+          && (resource == null || !isParticipant(gid, resource.data.uid));
       }
 
       // ---- groups/{gid}/leaderboard -----------------------------------------

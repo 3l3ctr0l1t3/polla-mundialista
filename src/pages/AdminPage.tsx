@@ -38,9 +38,9 @@ import PeopleIcon from '@mui/icons-material/People'
 import TuneIcon from '@mui/icons-material/Tune'
 import LockIcon from '@mui/icons-material/Lock'
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutlineOutlined'
-import { deleteDoc, serverTimestamp, updateDoc } from 'firebase/firestore'
+import { deleteDoc, getDocs, serverTimestamp, updateDoc } from 'firebase/firestore'
 import { useTranslation } from 'react-i18next'
-import { groupDoc, groupMemberDoc } from '../firebase/db'
+import { groupDoc, groupMemberDoc, groupPredictionDoc, matchesCol } from '../firebase/db'
 import { useAuth } from '../auth/useAuth'
 import { useGroup } from '../group/useGroup'
 import { useServerTime } from '../hooks/useServerTime'
@@ -381,10 +381,29 @@ export function AdminPage() {
 
   const handleConfirmRemove = async () => {
     if (!toRemove) return
-    setRemovingUid(toRemove.uid)
+    const removedUid = toRemove.uid
+    setRemovingUid(removedUid)
     try {
-      await deleteDoc(groupMemberDoc(gid, toRemove.uid))
+      // ORDER MATTERS: the orphan-cleanup rule in firestore.rules only allows deleting a
+      // prediction once its author has NO member doc, so the membership goes first.
+      await deleteDoc(groupMemberDoc(gid, removedUid))
       setToRemove(null)
+      // Best-effort cleanup of the ex-member's predictions: blind-delete `{uid}_{matchId}`
+      // for every global match id — deleting a nonexistent doc is a permitted no-op under
+      // the rules, so no prediction reads are needed. The leaderboard doc is left alone
+      // (ingestion-only, two-writers rule); the UI already ignores non-roster entries.
+      try {
+        const matches = await getDocs(matchesCol)
+        const results = await Promise.allSettled(
+          matches.docs.map((m) => deleteDoc(groupPredictionDoc(gid, removedUid, m.id))),
+        )
+        if (results.some((r) => r.status === 'rejected')) {
+          setSnack(t('admin.removeCleanupError'))
+        }
+      } catch {
+        // The member removal itself succeeded — surface only the cleanup failure.
+        setSnack(t('admin.removeCleanupError'))
+      }
     } catch {
       setSnack(t('admin.removeError'))
     } finally {

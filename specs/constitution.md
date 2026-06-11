@@ -16,7 +16,9 @@ constitution. Changing a principle here is a deliberate, reviewed act.
    - the **browser** (an authenticated participant) may write **only their own prediction, and only before
      that match's kickoff**;
    - the **ingestion service account** is the **only** writer of match results, leaderboard, and standings.
-   The browser never writes results or points.
+   The browser never writes results or points. Narrow carve-out (amended 2026-06-11): a group admin's
+   browser may additionally **delete** (never create or update) prediction docs belonging to someone who
+   is no longer a participant of that group, as part of member-removal cleanup.
 
 4. **Authoritative kickoff lock.** Prediction locking is enforced in Firestore security rules using server
    time with a **10-minute pre-kickoff buffer** (`request.time < match.kickoff − 10min`). The client clock

@@ -54,18 +54,30 @@ vi.mock('../auth/useAuth', () => ({
   }),
 }))
 
-// groupMemberDoc / groupDoc return recognizable refs.
+// groupMemberDoc / groupDoc / groupPredictionDoc / matchesCol return recognizable refs.
 vi.mock('../firebase/db', () => ({
   groupMemberDoc: (gid: string, uid: string) => ({ __ref: 'member', gid, uid }),
   groupDoc: (gid: string) => ({ __ref: 'group', gid }),
+  groupPredictionDoc: (gid: string, uid: string, matchId: string) => ({
+    __ref: 'prediction',
+    gid,
+    uid,
+    matchId,
+  }),
+  matchesCol: { __ref: 'matchesCol' },
 }))
 
 const updateDocMock = vi.fn<(...args: unknown[]) => Promise<void>>(() => Promise.resolve())
 const deleteDocMock = vi.fn<(...args: unknown[]) => Promise<void>>(() => Promise.resolve())
+// getDocs(matchesCol) feeds the post-removal prediction cleanup; default: no matches.
+const getDocsMock = vi.fn<(...args: unknown[]) => Promise<{ docs: { id: string }[] }>>(() =>
+  Promise.resolve({ docs: [] }),
+)
 vi.mock('firebase/firestore', () => ({
   serverTimestamp: () => 'SERVER_TS',
   updateDoc: (...args: unknown[]) => updateDocMock(...args),
   deleteDoc: (...args: unknown[]) => deleteDocMock(...args),
+  getDocs: (...args: unknown[]) => getDocsMock(...args),
 }))
 
 // Imported after mocks are registered.
@@ -108,6 +120,9 @@ beforeEach(() => {
   useApprovedMembersMock.mockReturnValue({ members: [], loading: false, error: null })
   updateDocMock.mockClear()
   deleteDocMock.mockClear()
+  deleteDocMock.mockImplementation(() => Promise.resolve())
+  getDocsMock.mockClear()
+  getDocsMock.mockImplementation(() => Promise.resolve({ docs: [] }))
   capturedGid = null
   useGroupMock.mockReturnValue({
     gid: 'g1',
@@ -258,6 +273,88 @@ describe('AdminPage — remove member', () => {
 
     await waitFor(() => expect(deleteDocMock).toHaveBeenCalledTimes(1))
     expect(deleteDocMock).toHaveBeenCalledWith({ __ref: 'member', gid: 'g1', uid: 'u2' })
+  })
+
+  it('confirm removal deletes the member doc FIRST, then one prediction delete per match id', async () => {
+    noPending()
+    useApprovedMembersMock.mockReturnValue({
+      members: [approvedMember('u2', 'Beto')],
+      loading: false,
+      error: null,
+    })
+    getDocsMock.mockResolvedValue({ docs: [{ id: 'm1' }, { id: 'm2' }, { id: 'm3' }] })
+    renderPage(<AdminPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: /remove beto/i }))
+    const dialog = screen.getByRole('dialog')
+    fireEvent.click(within(dialog).getByRole('button', { name: /^remove$/i }))
+
+    await waitFor(() => expect(deleteDocMock).toHaveBeenCalledTimes(4))
+    expect(getDocsMock).toHaveBeenCalledWith({ __ref: 'matchesCol' })
+    // The member doc goes first (the rules only allow prediction deletes once it's gone)…
+    expect(deleteDocMock.mock.calls[0][0]).toEqual({ __ref: 'member', gid: 'g1', uid: 'u2' })
+    // …then a blind delete of `{uid}_{matchId}` for every global match.
+    expect(deleteDocMock.mock.calls.slice(1).map(([ref]) => ref)).toEqual([
+      { __ref: 'prediction', gid: 'g1', uid: 'u2', matchId: 'm1' },
+      { __ref: 'prediction', gid: 'g1', uid: 'u2', matchId: 'm2' },
+      { __ref: 'prediction', gid: 'g1', uid: 'u2', matchId: 'm3' },
+    ])
+    // No error snackbars: removal + cleanup both succeeded.
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  })
+
+  it('a rejected prediction delete shows the cleanup snackbar but the removal still completes', async () => {
+    noPending()
+    useApprovedMembersMock.mockReturnValue({
+      members: [approvedMember('u2', 'Beto')],
+      loading: false,
+      error: null,
+    })
+    getDocsMock.mockResolvedValue({ docs: [{ id: 'm1' }, { id: 'm2' }] })
+    deleteDocMock.mockImplementation((ref) => {
+      const r = ref as { __ref: string; matchId?: string }
+      return r.__ref === 'prediction' && r.matchId === 'm2'
+        ? Promise.reject(new Error('permission-denied'))
+        : Promise.resolve()
+    })
+    renderPage(<AdminPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: /remove beto/i }))
+    const dialog = screen.getByRole('dialog')
+    fireEvent.click(within(dialog).getByRole('button', { name: /^remove$/i }))
+
+    await waitFor(() =>
+      expect(
+        screen.getByText('Member removed, but some of their predictions could not be cleaned up'),
+      ).toBeInTheDocument(),
+    )
+    // The member removal itself succeeded: dialog closed (MUI fades it out async),
+    // and the member-delete error is NOT shown.
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    expect(screen.queryByText('Could not remove that member. Please try again.')).toBeNull()
+    expect(deleteDocMock).toHaveBeenCalledTimes(3) // 1 member + 2 predictions
+  })
+
+  it('a failed match-list fetch shows the cleanup snackbar (member removal already done)', async () => {
+    noPending()
+    useApprovedMembersMock.mockReturnValue({
+      members: [approvedMember('u2', 'Beto')],
+      loading: false,
+      error: null,
+    })
+    getDocsMock.mockRejectedValue(new Error('unavailable'))
+    renderPage(<AdminPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: /remove beto/i }))
+    const dialog = screen.getByRole('dialog')
+    fireEvent.click(within(dialog).getByRole('button', { name: /^remove$/i }))
+
+    await waitFor(() =>
+      expect(
+        screen.getByText('Member removed, but some of their predictions could not be cleaned up'),
+      ).toBeInTheDocument(),
+    )
+    expect(deleteDocMock).toHaveBeenCalledTimes(1) // just the member doc
   })
 
   it('does NOT offer a Remove control for the current user', () => {

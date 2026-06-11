@@ -225,10 +225,11 @@
     "remove": "Eliminar",
     "removeAria": "Eliminar a {{name}}",
     "removeDialogTitle": "¿Eliminar miembro?",
-    "removeConfirm": "¿Eliminar a {{name}} de {{group}}? Sus predicciones se conservan, pero sale de la tabla de posiciones.",
+    "removeConfirm": "¿Eliminar a {{name}} de {{group}}? Sus pronósticos en este grupo también se eliminarán.",
     "thisMember": "este miembro",
     "thisGroup": "este grupo",
-    "removeError": "No se pudo eliminar a ese miembro. Inténtalo de nuevo."
+    "removeError": "No se pudo eliminar a ese miembro. Inténtalo de nuevo.",
+    "removeCleanupError": "Miembro eliminado, pero algunos de sus pronósticos no se pudieron limpiar"
   },
   "superadmin": {
     "title": "Superadmin",

@@ -225,10 +225,11 @@
     "remove": "Remove",
     "removeAria": "Remove {{name}}",
     "removeDialogTitle": "Remove member?",
-    "removeConfirm": "Remove {{name}} from {{group}}? Their predictions are kept but they drop off the leaderboard.",
+    "removeConfirm": "Remove {{name}} from {{group}}? Their predictions in this group will also be deleted.",
     "thisMember": "this member",
     "thisGroup": "this group",
-    "removeError": "Could not remove that member. Please try again."
+    "removeError": "Could not remove that member. Please try again.",
+    "removeCleanupError": "Member removed, but some of their predictions could not be cleaned up"
   },
   "superadmin": {
     "title": "Superadmin",

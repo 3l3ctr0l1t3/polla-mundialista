@@ -741,3 +741,118 @@ describe('groups — admin removes a member (delete member doc)', () => {
     await assertFails(deleteDoc(doc(stranger, 'groups', GROUP_A, 'members', ALICE)))
   })
 })
+
+/* ---------------- orphan prediction cleanup (amendment 2026-06-11) -------- */
+// `allow delete` on groups/{gid}/predictions: a group ADMIN may delete a prediction
+// ONLY when its author is no longer a participant (not the owner, no member doc of
+// ANY status), and a delete of a NONEXISTENT doc is a permitted no-op (so the client
+// can blind-delete `{uid}_{matchId}` per match with no new read access). Everything
+// else about predictions (read/create/update) is unchanged — covered by the suites
+// above and reveal.test.ts.
+
+describe('groups — orphan prediction cleanup (admin deletes ex-member predictions)', () => {
+  const EX_MEMBER = 'user-exmember' // had predictions; member doc already deleted
+
+  /** Seed a prediction doc rules-disabled (simulates pre-removal state). */
+  async function seedPrediction(gid: string, uid: string, matchId: string) {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(
+        doc(ctx.firestore(), 'groups', gid, 'predictions', predId(uid, matchId)),
+        validPred(uid, matchId),
+      )
+    })
+  }
+
+  beforeEach(async () => {
+    await seedGroup(GROUP_A, OWNER_A)
+    await seedMember(GROUP_A, ADMIN_MEMBER, 'admin', 'approved')
+    // EX_MEMBER's prediction exists but their member doc does NOT (admin removed it).
+    await seedPrediction(GROUP_A, EX_MEMBER, MATCH_ID)
+  })
+
+  it("a role-admin member CAN delete an EX-member's existing prediction", async () => {
+    const admin = authedAs(env, ADMIN_MEMBER, MEMBER_EMAIL)
+    await assertSucceeds(
+      deleteDoc(doc(admin, 'groups', GROUP_A, 'predictions', predId(EX_MEMBER, MATCH_ID))),
+    )
+  })
+
+  it("the group OWNER (implicit admin) CAN delete an EX-member's prediction", async () => {
+    const owner = authedAs(env, OWNER_A, MEMBER_EMAIL)
+    await assertSucceeds(
+      deleteDoc(doc(owner, 'groups', GROUP_A, 'predictions', predId(EX_MEMBER, MATCH_ID))),
+    )
+  })
+
+  it("an admin CAN delete an ex-member's prediction for a PAST-kickoff match (lock is write-only)", async () => {
+    await seedPrediction(GROUP_A, EX_MEMBER, PAST_MATCH_ID)
+    const admin = authedAs(env, ADMIN_MEMBER, MEMBER_EMAIL)
+    await assertSucceeds(
+      deleteDoc(doc(admin, 'groups', GROUP_A, 'predictions', predId(EX_MEMBER, PAST_MATCH_ID))),
+    )
+  })
+
+  it("an admin CANNOT delete an APPROVED member's prediction", async () => {
+    await seedMember(GROUP_A, ALICE, 'member', 'approved')
+    await seedPrediction(GROUP_A, ALICE, MATCH_ID)
+    const admin = authedAs(env, ADMIN_MEMBER, MEMBER_EMAIL)
+    await assertFails(
+      deleteDoc(doc(admin, 'groups', GROUP_A, 'predictions', predId(ALICE, MATCH_ID))),
+    )
+  })
+
+  it("an admin CANNOT delete a PENDING member's prediction (any member doc protects)", async () => {
+    await seedMember(GROUP_A, BOB, 'member', 'pending')
+    await seedPrediction(GROUP_A, BOB, MATCH_ID)
+    const admin = authedAs(env, ADMIN_MEMBER, MEMBER_EMAIL)
+    await assertFails(
+      deleteDoc(doc(admin, 'groups', GROUP_A, 'predictions', predId(BOB, MATCH_ID))),
+    )
+  })
+
+  it("an admin CANNOT delete the OWNER's prediction (owner is an implicit participant)", async () => {
+    await seedPrediction(GROUP_A, OWNER_A, MATCH_ID)
+    const admin = authedAs(env, ADMIN_MEMBER, MEMBER_EMAIL)
+    await assertFails(
+      deleteDoc(doc(admin, 'groups', GROUP_A, 'predictions', predId(OWNER_A, MATCH_ID))),
+    )
+  })
+
+  it("a plain (non-admin) member CANNOT delete an ex-member's prediction", async () => {
+    await seedMember(GROUP_A, ALICE, 'member', 'approved')
+    const ordinary = authedAs(env, ALICE, MEMBER_EMAIL)
+    await assertFails(
+      deleteDoc(doc(ordinary, 'groups', GROUP_A, 'predictions', predId(EX_MEMBER, MATCH_ID))),
+    )
+  })
+
+  it("a non-member stranger CANNOT delete an ex-member's prediction", async () => {
+    const stranger = authedAs(env, 'user-stranger', OUTSIDER_EMAIL)
+    await assertFails(
+      deleteDoc(doc(stranger, 'groups', GROUP_A, 'predictions', predId(EX_MEMBER, MATCH_ID))),
+    )
+  })
+
+  it('an admin CAN "delete" a NONEXISTENT prediction doc (blind no-op succeeds)', async () => {
+    const admin = authedAs(env, ADMIN_MEMBER, MEMBER_EMAIL)
+    await assertSucceeds(
+      deleteDoc(doc(admin, 'groups', GROUP_A, 'predictions', predId(EX_MEMBER, '999999'))),
+    )
+  })
+
+  it('an admin still CANNOT delete their OWN prediction (they are a participant)', async () => {
+    await seedPrediction(GROUP_A, ADMIN_MEMBER, MATCH_ID)
+    const admin = authedAs(env, ADMIN_MEMBER, MEMBER_EMAIL)
+    await assertFails(
+      deleteDoc(doc(admin, 'groups', GROUP_A, 'predictions', predId(ADMIN_MEMBER, MATCH_ID))),
+    )
+  })
+
+  it("the OWNER still CANNOT delete their OWN prediction (they're the owner)", async () => {
+    await seedPrediction(GROUP_A, OWNER_A, MATCH_ID)
+    const owner = authedAs(env, OWNER_A, MEMBER_EMAIL)
+    await assertFails(
+      deleteDoc(doc(owner, 'groups', GROUP_A, 'predictions', predId(OWNER_A, MATCH_ID))),
+    )
+  })
+})

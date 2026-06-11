@@ -121,6 +121,32 @@ describe('MatchPredictionsDialog', () => {
     expect(screen.getByText('You')).toBeInTheDocument()
   })
 
+  it('hides predictions left behind by removed (non-roster) members', () => {
+    rosterState = { roster: [rosterEntry('a', 'Alice')], loading: false, error: null }
+    useMatchPredictionsMock.mockReturnValue({
+      // 'ghost' saved a prediction while a member, then was removed from the group.
+      predictions: [pred('a', 2, 1), pred('ghost', 3, 0)],
+      loading: false,
+      error: null,
+    })
+    renderDialog(sampleFinishedMatch, true)
+    expect(screen.getByText('Alice')).toBeInTheDocument()
+    expect(screen.queryByText('Unknown member')).toBeNull()
+    expect(screen.queryByLabelText('Predicted 3 to 0')).toBeNull()
+  })
+
+  it('keeps the loading state until the roster has loaded (no unknown-member flash)', () => {
+    rosterState = { roster: [], loading: true, error: null }
+    useMatchPredictionsMock.mockReturnValue({
+      predictions: [pred('a', 2, 1)],
+      loading: false,
+      error: null,
+    })
+    renderDialog(sampleFinishedMatch, true)
+    expect(screen.getByLabelText('Loading predictions')).toBeInTheDocument()
+    expect(screen.queryByText('Unknown member')).toBeNull()
+  })
+
   it('shows earned points for a FINISHED match', () => {
     rosterState = { roster: [rosterEntry('a', 'Alice')], loading: false, error: null }
     useMatchPredictionsMock.mockReturnValue({

@@ -59,11 +59,17 @@ export function MatchPredictionsDialog({
   const { t } = useTranslation()
   const teamName = useTeamName()
   const { user } = useAuth()
-  const { roster } = useGroupRoster(gid)
+  const { roster, loading: rosterLoading } = useGroupRoster(gid)
   // Only query once kicked off AND the dialog is open (avoids a needless listener).
   const { predictions, loading, error } = useMatchPredictions(gid, match.matchId, open && kickedOff)
 
   const finished = match.status === 'FINISHED'
+
+  // List only CURRENT participants (approved members + owner). Removing a member deletes
+  // just their member doc — predictions they saved stay behind and would otherwise render
+  // as "unknown member" rows here.
+  const rosterUids = new Set(roster.map((r) => r.uid))
+  const visiblePredictions = predictions.filter((p) => rosterUids.has(p.uid))
 
   const nameFor = (uid: string) => roster.find((r) => r.uid === uid)
   const titleId = `predictions-${match.matchId}`
@@ -98,21 +104,21 @@ export function MatchPredictionsDialog({
               {t('predictions.revealDescription')}
             </Typography>
           </Stack>
-        ) : loading ? (
+        ) : loading || rosterLoading ? (
           <LoadingState rows={3} label={t('predictions.loadingList')} />
         ) : error ? (
           <ErrorState
             title={t('predictions.listErrorTitle')}
             description={t('predictions.listErrorDescription')}
           />
-        ) : predictions.length === 0 ? (
+        ) : visiblePredictions.length === 0 ? (
           <EmptyState
             title={t('predictions.noneTitle')}
             description={t('predictions.noneDescription')}
           />
         ) : (
           <List disablePadding aria-label={t('predictions.memberPredictions')}>
-            {predictions.map((p) => {
+            {visiblePredictions.map((p) => {
               const member = nameFor(p.uid)
               const displayName = member?.displayName ?? t('predictions.unknownMember')
               const isCurrentUser = user?.uid === p.uid

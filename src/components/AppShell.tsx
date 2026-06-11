@@ -24,6 +24,12 @@ export interface AppShellProps {
   children?: ReactNode
   /** App title shown in the top app bar. */
   title?: string
+  /**
+   * Interactive control rendered in the app-bar title slot (e.g. a group switcher).
+   * When provided, it replaces the plain title text; `title` is still used as the
+   * document/accessible label fallback.
+   */
+  titleControl?: ReactNode
   /** Navigation destinations. Defaults to the in-group destinations. */
   navItems?: NavItem[]
   /** Currently selected nav item key (controlled). */
@@ -42,7 +48,14 @@ export interface AppShellProps {
  * Routing is intentionally NOT wired here — the parent connects `navItems`,
  * `selectedKey` and `onNavigate` to its router.
  */
-export function AppShell({ children, title, navItems, selectedKey, onNavigate }: AppShellProps) {
+export function AppShell({
+  children,
+  title,
+  titleControl,
+  navItems,
+  selectedKey,
+  onNavigate,
+}: AppShellProps) {
   const theme = useTheme()
   const { t } = useTranslation()
   // Mobile-first: rail appears at the `sm` breakpoint and up.
@@ -182,9 +195,13 @@ export function AppShell({ children, title, navItems, selectedKey, onNavigate }:
       <AppBar position="fixed" sx={{ zIndex: (theme) => theme.zIndex.drawer + 1 }}>
         <Toolbar>
           <SportsSoccerIcon sx={{ mr: 1 }} aria-hidden />
-          <Typography variant="h6" component="h1" noWrap sx={{ flexGrow: 1 }}>
-            {resolvedTitle}
-          </Typography>
+          <Box sx={{ flexGrow: 1, minWidth: 0 }}>
+            {titleControl ?? (
+              <Typography variant="h6" component="h1" noWrap>
+                {resolvedTitle}
+              </Typography>
+            )}
+          </Box>
           <LanguageSwitcher />
         </Toolbar>
       </AppBar>

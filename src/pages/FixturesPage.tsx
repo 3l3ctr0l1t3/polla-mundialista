@@ -106,13 +106,10 @@ export function FixturesPage() {
                 sx={{
                   display: 'grid',
                   gap: 1.5,
-                  // 1 card per row on mobile, filling out to 3–4 on wider screens.
-                  gridTemplateColumns: {
-                    xs: '1fr',
-                    sm: 'repeat(2, 1fr)',
-                    md: 'repeat(3, 1fr)',
-                    lg: 'repeat(4, 1fr)',
-                  },
+                  // Compact cards: as many columns as fit, but a card never stretches
+                  // past 360px — wide screens get more columns, not wider cards.
+                  gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 360px))',
+                  justifyContent: 'center',
                   alignItems: 'start',
                 }}
               >

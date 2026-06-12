@@ -108,8 +108,9 @@ export function FixturesPage() {
                   gap: 1.5,
                   // Compact cards: as many columns as fit, but a card never stretches
                   // past 360px — wide screens get more columns, not wider cards.
+                  // Tracks anchor LEFT so cards line up under the day headers.
                   gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 360px))',
-                  justifyContent: 'center',
+                  justifyContent: 'start',
                   alignItems: 'start',
                 }}
               >

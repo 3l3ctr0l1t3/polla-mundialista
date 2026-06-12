@@ -38,8 +38,8 @@ Dependency order: 001 → 002 → 003 → (004, 006 parallel) → 005 → 007 �
 | 030 | Hamburger group drawer (select · create · join, supersedes 029's title menu) | ✅ | 012, 029 | react-mui-builder |
 | 031 | Drawer & loader polish: spinner load screen, toggle/X hamburger, padding, neutral selection | ✅ | 030 | react-mui-builder |
 | 032 | Finished card: points pill (option C) + constant card size in every state | ✅ | 025, 027 | react-mui-builder |
-| 033 | Ingestion read/write cost optimization (stay within Spark free tier) | 🟨 | 008, 012, 025 | ingestion-engineer |
-| 034 | Missed prediction counts as 0 (universal accountability + late joiners) | 🟨 | 006, 007, 012, 018, 025, 032 | ingestion-engineer + react-mui-builder |
+| 033 | Ingestion read/write cost optimization (stay within Spark free tier) | ✅ | 008, 012, 025 | ingestion-engineer |
+| 034 | Missed prediction counts as 0 (universal accountability + late joiners) | ✅ | 006, 007, 012, 018, 025, 032 | ingestion-engineer + react-mui-builder |
 
 > 012 restructures predictions/leaderboard/membership to be **per-group** (supersedes the single-pool
 > parts of 005/007/011); matches/standings/config stay global. Built in phases A–D (see 012/plan.md).

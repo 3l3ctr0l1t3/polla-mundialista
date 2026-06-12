@@ -9,9 +9,10 @@ Operating manual for this repo. Read every session. For the non-negotiable princ
 group has its own members, **per-group predictions**, and its own live leaderboard. Tournament runs
 **June 11 – July 19, 2026**.
 
-## Current state (2026-06-03)
-- **Live:** https://la-pollita-corp.web.app · Firebase project **`la-pollita-corp`** (Spark, free) ·
-  Firestore `(default)` in **southamerica-east1** (São Paulo).
+## Current state (2026-06-12)
+- **Live:** https://la-pollita-corp.web.app · Firebase project **`la-pollita-corp`** (**Blaze /
+  pay-as-you-go** since 2026-06-11 — see constitution §6) · Firestore `(default)` in
+  **southamerica-east1** (São Paulo).
 - **Built & committed (tickets 001–012):** scaffold, Google auth, data model + security rules, fixtures/
   results UI, prediction input + kickoff lock, scoring engine, leaderboard, **multi-tenant groups (012)**,
   default MD3 theme, ingestion automation. Status per ticket: [`specs/backlog.md`](specs/backlog.md).
@@ -39,10 +40,13 @@ ingestion-engineer, acceptance-verifier).
 
 ## Tech stack
 - **Frontend:** React 19 + MUI v9 (Material Design 3) + react-router-dom v7 + Vite 7 + TypeScript (strict).
-- **Backend/data:** Firebase **Spark (free)** — Hosting + Firestore + Auth (Google). No Cloud Functions.
-- **Ingestion:** Node/TS (`firebase-admin`, `tsx`) run by a **public-repo GitHub Actions cron**, polling
-  **football-data.org** v4 (`WC`, season `2026`). Tooling note: **Node 22.11** is pinned (Vite 7 / Vitest 3 /
-  jsdom 26 — newer majors need Node 22.12+).
+- **Backend/data:** Firebase **Blaze (pay-as-you-go)** — Hosting + Firestore + Auth (Google). Cloud Functions
+  are now **permitted, scoped to the ingestion cron** (constitution §6, amended 2026-06-12); none deployed yet
+  — the migration to Scheduled Functions is **ticket 035** (spec-ready, not built).
+- **Ingestion:** Node/TS (`firebase-admin`, `tsx`) run by a **public-repo GitHub Actions cron** (to be moved
+  to Firebase Scheduled Functions + Cloud Scheduler — ticket 035), polling **football-data.org** v4 (`WC`,
+  season `2026`). Tooling note: **Node 22.11** is pinned (Vite 7 / Vitest 3 / jsdom 26 — newer majors need
+  Node 22.12+).
 - **Scoring:** tiered & configurable — exact=5, outcome=3, goal-diff bonus=1 (`src/shared/scoring.ts`).
 
 ## Folder map

@@ -30,9 +30,15 @@ constitution. Changing a principle here is a deliberate, reviewed act.
    service-account JSON live **only in GitHub Secrets**. Local admin keys and `.env.local` are gitignored.
    The web bundle contains only public Firebase config.
 
-6. **Free-tier only.** Firebase **Spark** (no Cloud Functions), football-data.org **free tier**, and
-   **public-repo GitHub Actions** (unlimited minutes). No change may introduce a paid dependency without an
-   explicit decision.
+6. **Cost-controlled by default (Blaze, since 2026-06-11).** The web app and Firestore run on Firebase; the
+   project is on the **Blaze (pay-as-you-go)** plan. Blaze is used **only** to (a) stay within the
+   always-free usage tiers and (b) permit the **ingestion cron to run on Firebase Scheduled Functions +
+   Cloud Scheduler** (enabled by ticket 035). football-data.org is used on its **free tier**; public-repo
+   GitHub Actions remain available (free) as an alternative/fallback runner. **No change may introduce a paid
+   dependency or a new billable resource without an explicit, documented decision in a ticket**, and any such
+   change must keep projected cost negligible (target: within the always-free Cloud Scheduler/Functions
+   allowances, ~$0/month at this scale). *(Amended 2026-06-12; supersedes the original "Spark only, no Cloud
+   Functions" rule after the deliberate Blaze upgrade.)*
 
 7. **Done = tested + meets acceptance rules.** A ticket is closed only when its `spec.md` acceptance rules
    pass. Scoring changes require unit tests; security-rule changes require Firestore emulator tests.

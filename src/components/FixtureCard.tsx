@@ -220,7 +220,16 @@ function Dot({ color, size = 8 }: { color: string; size?: number }) {
  * card's bottom-right corner over the (empty) finished footer. Display-only: pointer events
  * are off so it never swallows the finished card's click affordance.
  */
-function PointsPill({ points, tier }: { points: number; tier: Tier }) {
+function PointsPill({
+  points,
+  tier,
+  noPrediction = false,
+}: {
+  points: number
+  tier: Tier
+  /** Ticket 034: a FINISHED match the viewer never predicted — explicit "0 pts · no prediction". */
+  noPrediction?: boolean
+}) {
   const { t } = useTranslation()
   const color = TIER_COLOR[tier]
   return (
@@ -247,7 +256,7 @@ function PointsPill({ points, tier }: { points: number; tier: Tier }) {
         variant="caption"
         sx={{ fontWeight: 700, fontVariantNumeric: 'tabular-nums', color }}
       >
-        {t('predictions.pts', { count: points })}
+        {noPrediction ? t('predictions.noPredictionZero') : t('predictions.pts', { count: points })}
       </Typography>
     </Stack>
   )
@@ -332,23 +341,30 @@ export function FixtureCard({ gid, match, existing, now }: FixtureCardProps) {
 
   const inputsDisabled = locked || saving
 
-  // Points pill (ticket 032): only on a FINISHED card where the viewer predicted.
-  // Ingestion-written points/breakdown are authoritative (constitution §3 — display only);
-  // until they land, preview with the ONE shared engine under the group's effective config.
+  // Points pill (ticket 032 + 034): only on a FINISHED card with a real score.
+  // - Viewer predicted: tinted by the best tier the pick hit. Ingestion-written
+  //   points/breakdown are authoritative (constitution §3 — display only); until they land,
+  //   preview with the ONE shared engine under the group's effective config.
+  // - Viewer has NO prediction (ticket 034): an explicit "0 pts · no prediction" miss pill —
+  //   the missed pick is derived as 0 for display only (no Firestore read/write, no phantom doc).
   let pill: ReactNode = null
-  if (finished && existing && score.home !== null && score.away !== null) {
-    const graded =
-      existing.points !== undefined && existing.breakdown !== undefined
-        ? { points: existing.points, breakdown: existing.breakdown }
-        : scorePrediction(
-            { home: existing.homeGoals, away: existing.awayGoals },
-            { home: score.home, away: score.away },
-            effectiveScoring(group ?? {}),
-            match.stage,
-          )
-    const tier: Tier =
-      graded.breakdown.exact > 0 ? 'exact' : graded.breakdown.outcome > 0 ? 'outcome' : 'miss'
-    pill = <PointsPill points={graded.points} tier={tier} />
+  if (finished && score.home !== null && score.away !== null) {
+    if (existing) {
+      const graded =
+        existing.points !== undefined && existing.breakdown !== undefined
+          ? { points: existing.points, breakdown: existing.breakdown }
+          : scorePrediction(
+              { home: existing.homeGoals, away: existing.awayGoals },
+              { home: score.home, away: score.away },
+              effectiveScoring(group ?? {}),
+              match.stage,
+            )
+      const tier: Tier =
+        graded.breakdown.exact > 0 ? 'exact' : graded.breakdown.outcome > 0 ? 'outcome' : 'miss'
+      pill = <PointsPill points={graded.points} tier={tier} />
+    } else {
+      pill = <PointsPill points={0} tier="miss" noPrediction />
+    }
   }
 
   const content = (

@@ -30,7 +30,8 @@ import {
 } from './buildLeaderboard.ts'
 import { scorePrediction, mergeScoring, DEFAULT_SCORING, type ScoringConfig } from './scoring.ts'
 import { computeTournamentCutoffs } from './tournamentConfig.ts'
-import type { FdStandingsResponse } from './types.ts'
+import { matchSignature, finishedSignature, decidePasses, type IngestSig } from './changeDetect.ts'
+import type { FdMatchesResponse, FdStandingsResponse } from './types.ts'
 
 const { Timestamp, FieldValue } = admin.firestore
 
@@ -159,24 +160,41 @@ async function resolveGroupContext(
 }
 
 /**
- * Grade FINISHED matches for ONE group; write points/breakdown to each of that
- * group's predictions (groups/{gid}/predictions/{uid}_{matchId}). Only
- * predictions belonging to a participant are graded — predictions from a
- * removed member are left untouched (and excluded from the board anyway).
+ * Grade + rebuild the leaderboard for ONE group from a SINGLE predictions read
+ * (ticket 033 — kills the previous double read).
+ *
+ * Previously `gradeGroupPredictions` and `rebuildGroupLeaderboard` EACH read the
+ * whole `groups/{gid}/predictions` collection — two full reads per group per
+ * working tick. Here we read it once, then:
+ *   1. Grade the FINISHED, not-yet-graded-at-this-version predictions IN MEMORY
+ *      and write back ONLY the newly-graded docs.
+ *   2. Build the leaderboard from the in-memory set — stored points UNION this
+ *      run's fresh grades, indexed by `{uid}_{matchId}` so a fresh grade
+ *      OVERWRITES the stored one (never double-counted).
+ *
+ * Only predictions belonging to a participant are graded — predictions from a
+ * removed member are left untouched (and excluded from the board anyway). The
+ * grading output is byte-for-byte identical to the previous two-read code path.
  */
-async function gradeGroupPredictions(
+async function gradeAndBuildGroup(
   db: FirebaseFirestore.Firestore,
   ctx: GroupContext,
   finished: Map<string, { home: number; away: number; stage: string }>,
   cfg: ScoringConfig,
-): Promise<number> {
+): Promise<{ graded: number; rows: number }> {
   const participantUids = new Set(ctx.participants.map((p) => p.uid))
+
+  // --- The ONE read of this group's predictions. ---
+  const predsSnap = await db.collection(`groups/${ctx.groupId}/predictions`).get()
+
   const writes: Array<{
     ref: FirebaseFirestore.DocumentReference
     data: FirebaseFirestore.UpdateData<unknown>
   }> = []
 
-  const predsSnap = await db.collection(`groups/${ctx.groupId}/predictions`).get()
+  // Aggregate the board from this single snapshot. Key by `{uid}_{matchId}` so a
+  // prediction freshly graded this run overwrites its stored points exactly once.
+  const boardByKey = new Map<string, GradedPrediction>()
 
   for (const doc of predsSnap.docs) {
     const p = doc.data() as {
@@ -184,12 +202,24 @@ async function gradeGroupPredictions(
       matchId?: string
       homeGoals: number
       awayGoals: number
+      points?: number | null
+      breakdown?: GradedPrediction['breakdown']
       scoringVersion?: number
     }
     const uid = p.uid ?? doc.id.split('_')[0]
-    if (!participantUids.has(uid)) continue // not an active participant — skip.
-
     const matchId = p.matchId ?? doc.id.slice(doc.id.indexOf('_') + 1)
+
+    // Seed the board with the STORED grade (may be ungraded → ignored by
+    // buildLeaderboard). buildLeaderboard already skips non-participant uids.
+    boardByKey.set(`${uid}_${matchId}`, {
+      uid,
+      matchId,
+      points: p.points,
+      breakdown: p.breakdown,
+    })
+
+    if (!participantUids.has(uid)) continue // not an active participant — skip grading.
+
     const actual = finished.get(matchId)
     if (!actual) continue // match not FINISHED (or no result yet).
 
@@ -206,34 +236,22 @@ async function gradeGroupPredictions(
       ref: doc.ref,
       data: { points, breakdown, scoringVersion: SCORING_VERSION },
     })
+    // Overwrite the stored entry with this run's fresh grade for the board.
+    boardByKey.set(`${uid}_${matchId}`, { uid, matchId, points, breakdown })
   }
 
+  // Write back ONLY the newly-graded docs.
   await commitInBatches(db, writes, (batch, w) => {
     batch.update(w.ref, w.data)
   })
-  return writes.length
-}
 
-/**
- * Recompute ONE group's leaderboard from its graded predictions, restricted to
- * that group's participant set. Writes groups/{gid}/leaderboard/{uid}.
- */
-async function rebuildGroupLeaderboard(
-  db: FirebaseFirestore.Firestore,
-  ctx: GroupContext,
-): Promise<number> {
-  const predsSnap = await db.collection(`groups/${ctx.groupId}/predictions`).get()
-
-  const predictions: GradedPrediction[] = predsSnap.docs.map((d) => {
-    const data = d.data()
-    return {
-      uid: data.uid ?? d.id.split('_')[0],
-      points: data.points,
-      breakdown: data.breakdown,
-    }
-  })
-
-  const rows = buildLeaderboard(predictions, ctx.participants)
+  // --- Build the leaderboard from the in-memory set (no second read). ---
+  // The denominator for EVERY participant is the set of FINISHED match ids
+  // (ticket 034): a missing pick for a finished match counts as a 0-point graded
+  // match. Derived from the same `finished` map the grading pass used — no extra
+  // reads, no phantom prediction docs.
+  const finishedMatchIds = new Set(finished.keys())
+  const rows = buildLeaderboard([...boardByKey.values()], ctx.participants, finishedMatchIds)
   const updatedAt = Timestamp.now()
   const board = db.collection(`groups/${ctx.groupId}/leaderboard`)
 
@@ -256,7 +274,8 @@ async function rebuildGroupLeaderboard(
   await commitInBatches(db, stale, (batch, d) => {
     batch.delete(d.ref)
   })
-  return rows.length
+
+  return { graded: writes.length, rows: rows.length }
 }
 
 /**
@@ -349,27 +368,35 @@ async function commitInBatches<T>(
   }
 }
 
-async function main(): Promise<void> {
-  const now = new Date()
-  const force = process.env.INGEST_FORCE === '1'
+/** The fetched API payloads `runIngest` operates on (injectable for tests). */
+export interface FetchedData {
+  matchesRes: FdMatchesResponse
+  finishedRes: FdMatchesResponse
+  standingsRes: FdStandingsResponse
+}
 
-  if (!withinWindow(now) && !force) {
-    console.log(
-      `[ingest] ${now.toISOString()} is outside the tournament window ` +
-        `(2026-06-11 .. 2026-07-19). Early-exit. Set INGEST_FORCE=1 to override.`,
-    )
-    return
-  }
+/**
+ * The orchestration core (ticket 033 — extracted from `main` so it can be driven
+ * by an injected Firestore double in tests). Reads `config/meta` once, computes
+ * the change-detection signatures, gates the global writes + per-group pass, and
+ * persists the watermark. The window guard, real `getDb()`, and live fetch stay
+ * in `main` so this stays free of credentials/network.
+ */
+export async function runIngest(
+  db: FirebaseFirestore.Firestore,
+  fetched: FetchedData,
+  opts: { now?: Date; force?: boolean } = {},
+): Promise<void> {
+  const now = opts.now ?? new Date()
+  const force = opts.force ?? false
+  const { matchesRes, finishedRes, standingsRes } = fetched
 
-  const db = getDb()
-  const client = new FootballDataClient()
-
-  console.log('[ingest] fetching matches + standings…')
-  const [matchesRes, finishedRes, standingsRes] = [
-    await client.getMatches(),
-    await client.getFinishedMatches(),
-    await client.getStandings(),
-  ]
+  // Read config/meta ONCE up front (ticket 033). The persisted `sig` watermark
+  // drives the change-detection guard that skips no-op ticks.
+  const metaSnap = await db.doc('config/meta').get()
+  const prevSig = metaSnap.exists
+    ? ((metaSnap.data() as { sig?: Partial<IngestSig> }).sig ?? undefined)
+    : undefined
 
   // Overlay authoritative FINISHED scores. The free tier can serve a finished
   // match's full-time score on the status-filtered endpoint a polling cycle (or
@@ -387,22 +414,43 @@ async function main(): Promise<void> {
   })
 
   const matches = mergedRaw.map((m) => mapMatch(m, now))
-  console.log(`[ingest] upserting ${matches.length} matches…`)
-  await upsertMatches(db, matches)
 
-  const standingsGroups = await upsertStandings(db, standingsRes, matches)
-  console.log(`[ingest] upserted ${standingsGroups} group standings.`)
+  // Change-detection (ticket 033). Compute the signatures from the mapped matches
+  // (AFTER the FINISHED-score overlay above) and decide which passes to run.
+  const matchSig = matchSignature(matches)
+  const finishedSig = finishedSignature(matches)
+  const decision = decidePasses(
+    { matchSig, finishedSig, scoringVersion: SCORING_VERSION },
+    prevSig,
+    force,
+  )
+  console.log(
+    `[ingest] passes: writeGlobals=${decision.writeGlobals} ` +
+      `gradeAndBoard=${decision.gradeAndBoard} (force=${force})`,
+  )
 
-  // Global cutoffs the strict-mode prediction rules depend on (ticket 019).
-  // merge:true so a partially-known bracket never clobbers a previously-written
-  // knockout cutoff; admin-SDK-only writer keeps the two-writers rule intact.
-  const cutoffs = computeTournamentCutoffs(matches)
-  if (cutoffs.firstCupMatchKickoff || cutoffs.firstKnockoutKickoff) {
-    await db.doc('config/tournament').set(cutoffs, { merge: true })
-    console.log('[ingest] wrote config/tournament cutoffs', {
-      firstCupMatchKickoff: cutoffs.firstCupMatchKickoff?.toDate().toISOString() ?? null,
-      firstKnockoutKickoff: cutoffs.firstKnockoutKickoff?.toDate().toISOString() ?? null,
-    })
+  // --- GLOBAL writes (matches, standings, cutoffs) — gated on writeGlobals. ---
+  let standingsGroups = 0
+  if (decision.writeGlobals) {
+    console.log(`[ingest] upserting ${matches.length} matches…`)
+    await upsertMatches(db, matches)
+
+    standingsGroups = await upsertStandings(db, standingsRes, matches)
+    console.log(`[ingest] upserted ${standingsGroups} group standings.`)
+
+    // Global cutoffs the strict-mode prediction rules depend on (ticket 019).
+    // merge:true so a partially-known bracket never clobbers a previously-written
+    // knockout cutoff; admin-SDK-only writer keeps the two-writers rule intact.
+    const cutoffs = computeTournamentCutoffs(matches)
+    if (cutoffs.firstCupMatchKickoff || cutoffs.firstKnockoutKickoff) {
+      await db.doc('config/tournament').set(cutoffs, { merge: true })
+      console.log('[ingest] wrote config/tournament cutoffs', {
+        firstCupMatchKickoff: cutoffs.firstCupMatchKickoff?.toDate().toISOString() ?? null,
+        firstKnockoutKickoff: cutoffs.firstKnockoutKickoff?.toDate().toISOString() ?? null,
+      })
+    }
+  } else {
+    console.log('[ingest] matches unchanged — skipping global writes.')
   }
 
   // FINISHED full-time results, keyed by matchId — shared across all groups.
@@ -414,44 +462,67 @@ async function main(): Promise<void> {
     finished.set(m.matchId, { home: m.score.home, away: m.score.away, stage: m.stage })
   }
 
-  // GLOBAL base config (config/scoring ∪ DEFAULT_SCORING). Each group's effective
-  // config is this base with the group's optional `scoring` override merged on top.
-  const globalBase = await loadScoringConfig(db)
-
-  // Per-group grading + leaderboard (multi-tenant — ticket 012).
-  const groupsSnap = await db.collection('groups').get()
+  // --- Per-group grading + leaderboard (multi-tenant — ticket 012) — gated on
+  //     gradeAndBoard (ticket 033). On a skip: ZERO prediction reads, ZERO
+  //     prediction/leaderboard writes. ---
   let totalGraded = 0
   let totalBoardRows = 0
-  for (const groupDoc of groupsSnap.docs) {
-    const ctx = await resolveGroupContext(db, groupDoc)
-    const effective = mergeScoring(globalBase, ctx.scoringOverride)
-    const graded = await gradeGroupPredictions(db, ctx, finished, effective)
-    const rows = await rebuildGroupLeaderboard(db, ctx)
-    totalGraded += graded
-    totalBoardRows += rows
+  let groupsCount = 0
+  if (decision.gradeAndBoard) {
+    // GLOBAL base config (config/scoring ∪ DEFAULT_SCORING). Each group's effective
+    // config is this base with the group's optional `scoring` override merged on top.
+    const globalBase = await loadScoringConfig(db)
+
+    const groupsSnap = await db.collection('groups').get()
+    groupsCount = groupsSnap.size
+    for (const groupDoc of groupsSnap.docs) {
+      const ctx = await resolveGroupContext(db, groupDoc)
+      const effective = mergeScoring(globalBase, ctx.scoringOverride)
+      // ONE predictions read per group — grading + board from a single snapshot.
+      const { graded, rows } = await gradeAndBuildGroup(db, ctx, finished, effective)
+      totalGraded += graded
+      totalBoardRows += rows
+      console.log(
+        `[ingest] group ${ctx.groupId}: ${ctx.participants.length} participants, ` +
+          `graded ${graded} predictions, leaderboard ${rows} rows.`,
+      )
+    }
     console.log(
-      `[ingest] group ${ctx.groupId}: ${ctx.participants.length} participants, ` +
-        `graded ${graded} predictions, leaderboard ${rows} rows.`,
+      `[ingest] graded ${totalGraded} predictions across ${groupsCount} groups ` +
+        `(scoringVersion ${SCORING_VERSION}).`,
     )
+  } else {
+    console.log('[ingest] no new/changed finish — skipping per-group grading + leaderboard.')
   }
-  console.log(
-    `[ingest] graded ${totalGraded} predictions across ${groupsSnap.size} groups ` +
-      `(scoringVersion ${SCORING_VERSION}).`,
-  )
+
+  // Persist the watermark. Update only the parts whose pass actually ran so a
+  // fully-skipped tick leaves the prior watermark intact (ticket 033):
+  //   - sig.matches when globals were written,
+  //   - sig.finished + sig.scoringVersion when the per-group pass ran.
+  const sigUpdate: Partial<IngestSig> = {}
+  if (decision.writeGlobals) sigUpdate.matches = matchSig
+  if (decision.gradeAndBoard) {
+    sigUpdate.finished = finishedSig
+    sigUpdate.scoringVersion = SCORING_VERSION
+  }
 
   await db.doc('config/meta').set(
     {
       lastIngestRun: {
         at: Timestamp.now(),
         matches: matches.length,
-        groups: groupsSnap.size,
+        groups: groupsCount,
         gradedPredictions: totalGraded,
         leaderboardRows: totalBoardRows,
         standingsGroups,
         scoringVersion: SCORING_VERSION,
+        writeGlobals: decision.writeGlobals,
+        gradeAndBoard: decision.gradeAndBoard,
         ok: true,
       },
       lastIngestAt: FieldValue.serverTimestamp(),
+      // merge:true on the nested `sig` updates only the keys present in sigUpdate.
+      sig: sigUpdate,
     },
     { merge: true },
   )
@@ -459,7 +530,35 @@ async function main(): Promise<void> {
   console.log('[ingest] done.')
 }
 
-main().catch((err) => {
-  console.error('[ingest] FAILED:', err)
-  process.exitCode = 1
-})
+async function main(): Promise<void> {
+  const now = new Date()
+  const force = process.env.INGEST_FORCE === '1'
+
+  if (!withinWindow(now) && !force) {
+    console.log(
+      `[ingest] ${now.toISOString()} is outside the tournament window ` +
+        `(2026-06-11 .. 2026-07-19). Early-exit. Set INGEST_FORCE=1 to override.`,
+    )
+    return
+  }
+
+  const db = getDb()
+  const client = new FootballDataClient()
+
+  console.log('[ingest] fetching matches + standings…')
+  const fetched: FetchedData = {
+    matchesRes: await client.getMatches(),
+    finishedRes: await client.getFinishedMatches(),
+    standingsRes: await client.getStandings(),
+  }
+
+  await runIngest(db, fetched, { now, force })
+}
+
+// Only run the live job when executed directly (not when imported by a test).
+if (process.env.INGEST_NO_MAIN !== '1') {
+  main().catch((err) => {
+    console.error('[ingest] FAILED:', err)
+    process.exitCode = 1
+  })
+}

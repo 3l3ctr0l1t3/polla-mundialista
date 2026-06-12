@@ -144,6 +144,7 @@
     "openDialogCard": "Ver pronósticos del grupo para este partido",
     "yourPrediction": "Tu predicción {{home}}–{{away}}",
     "noPredictionLocked": "No hiciste pronóstico para este partido",
+    "noPredictionZero": "0 pts · sin pronóstico",
     "lazyLockHint": "Se cierra 10 min antes del inicio",
     "strictGroupLock": "Estricto: las predicciones de fase de grupos se cierran {{time}}",
     "strictKnockoutLock": "Estricto: las predicciones de eliminatorias se cierran {{time}}"

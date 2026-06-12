@@ -111,7 +111,7 @@ function gradeGroup(g: SampleGroup, participants: ParticipantProfile[]): GradedP
     const actual = finished.get(p.matchId)
     if (!actual) continue // not FINISHED (e.g. IN_PLAY 500004) → ungraded.
     const { points, breakdown } = scorePrediction({ home: p.homeGoals, away: p.awayGoals }, actual)
-    out.push({ uid: p.uid, points, breakdown })
+    out.push({ uid: p.uid, matchId: p.matchId, points, breakdown })
   }
   return out
 }
@@ -124,7 +124,9 @@ function boardFor(groupId: string): {
   const g = groupById(groupId)
   const participants = resolveParticipants(g)
   const graded = gradeGroup(g, participants)
-  return { participants, board: buildLeaderboard(graded, participants) }
+  // Ticket 034: the denominator is the FINISHED-match set, shared by everyone.
+  const finishedMatchIds = new Set(finished.keys())
+  return { participants, board: buildLeaderboard(graded, participants, finishedMatchIds) }
 }
 
 const rowOf = (board: LeaderboardRow[], uid: string): LeaderboardRow => {
@@ -146,8 +148,13 @@ describe('per-group ingestion (two-group isolation)', () => {
     expect(rowOf(board, 'u_beto').totalPoints).toBe(13) // 4 + 6 + 3
     expect(rowOf(board, 'u_caro').totalPoints).toBe(4) // outcome 3 + gd 1
 
-    // u_caro predicted 500004 (IN_PLAY) — it must NOT count as graded.
-    expect(rowOf(board, 'u_caro').predictionsGraded).toBe(1)
+    // u_caro predicted 500004 (IN_PLAY) — it must NOT count as graded, but the
+    // denominator is now the SHARED finished-match count (ticket 034): every
+    // participant carries it, including the matches they skipped (as 0s).
+    const finishedCount = finished.size
+    expect(rowOf(board, 'u_caro').predictionsGraded).toBe(finishedCount)
+    expect(rowOf(board, 'u_ana').predictionsGraded).toBe(finishedCount)
+    expect(rowOf(board, 'u_beto').predictionsGraded).toBe(finishedCount)
 
     // Counts + dense ranks.
     expect(rowOf(board, 'u_ana')).toMatchObject({ exactCount: 2, outcomeCount: 1, rank: 1 })

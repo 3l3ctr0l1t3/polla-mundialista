@@ -27,10 +27,15 @@ current**.
   run where **no match newly finished or changed score/status** since that watermark, **SKIP the entire
   per-group pass**: no prediction reads, no grading, no leaderboard reads/writes. The watermark is updated
   whenever the per-group pass runs.
-- **Targeted prediction reads (when grading IS needed).** When one or more matches newly finished/changed,
-  read **only the predictions for those matchIds** — a collection-group `where('matchId','in', newlyFinishedIds)`
-  query (or a per-group equivalent), batched within Firestore's `in`-clause limit — instead of scanning the
-  whole predictions collection. Turns ~567 reads into ~tens (bounded by participants × changed matches).
+- **Single predictions read per working tick (kill the double read).** Today the per-group pass reads the
+  whole `groups/{gid}/predictions` collection **twice** (once to grade, once to rebuild the board). Because
+  the leaderboard must aggregate *all* graded predictions to recompute totals, a targeted
+  `where('matchId','in',…)` grading read would be *additional to* an unavoidable full board read — a net
+  pessimization. Instead, read each group's predictions **at most once** per working tick, grade the newly
+  FINISHED ones in memory, and build the board from that same in-memory set (stored points ∪ this run's fresh
+  grades). Combined with the guard above: **0 prediction reads on a no-op tick, ≤1 per group on a working
+  tick** (down from 2 per group on *every* tick). *(Refined from the original "targeted reads" wording during
+  planning — see plan.md.)*
 - **Write only changed match docs (diff-before-write).** Before upserting a `matches/{fdId}` doc, compare the
   incoming `status + score + kickoff` to what is already stored; **skip the write** when unchanged. Only
   changed match docs are written, replacing the current "rewrite all 104 every run" behavior.
@@ -60,9 +65,9 @@ Each rule is verifiable. These are what `/spec-verify` checks.
 1. **No-op run does zero prediction work.** A node-env test with a fake/injected Firestore proves a run where
    **nothing newly finished or changed** performs **zero** prediction-document reads and writes **zero**
    prediction/leaderboard docs (asserted via read/write counters on the fake Firestore).
-2. **Targeted reads when one match finishes.** A test where **exactly one** match newly finishes proves the
-   job reads **only that match's predictions** (bounded by participants), not the full predictions collection
-   (asserted via the query filter and the read counter).
+2. **At-most-one predictions read per working tick.** A test where one or more matches newly finish proves the
+   job reads each group's `predictions` collection **exactly once** (not the previous twice), feeding both
+   grading and the leaderboard from that single snapshot (asserted via the read counter == group count).
 3. **Diff-before-write on match docs.** A test proves `matches/{fdId}` upserts are **skipped** for matches
    whose stored `status + score + kickoff` are unchanged, and **performed** only for changed ones (asserted
    via the write counter).

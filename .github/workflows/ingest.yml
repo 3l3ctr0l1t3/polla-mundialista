@@ -19,13 +19,18 @@ name: ingest
 on:
   schedule:
     # NOTE: cron is UTC. Match windows for WC 2026 (US/CA/MX kickoffs) cluster
-    # roughly 15:00–04:00 UTC. Dense polling (~every 10 min) in those windows,
+    # roughly 15:00–04:00 UTC. Dense polling (~every 20 min) in those windows,
     # sparse (hourly) off-hours, to keep results fresh without wasting minutes.
     #
-    # Dense window A: 15:00–23:59 UTC, every 10 minutes.
-    - cron: '*/10 15-23 * * *'
-    # Dense window B: 00:00–04:59 UTC, every 10 minutes.
-    - cron: '*/10 0-4 * * *'
+    # Cadence relaxed 10 → 20 min in ticket 033 to stay within the Firebase Spark
+    # free-tier quota (50K reads / 20K writes per day). The change-detection guard
+    # makes almost every tick a cheap no-op, so 20-min polling is comfortably
+    # within the ~15–30 min result-freshness expectation.
+    #
+    # Dense window A: 15:00–23:59 UTC, every 20 minutes.
+    - cron: '*/20 15-23 * * *'
+    # Dense window B: 00:00–04:59 UTC, every 20 minutes.
+    - cron: '*/20 0-4 * * *'
     # Sparse off-hours: 05:00–14:59 UTC, once per hour (top of the hour).
     - cron: '0 5-14 * * *'
   workflow_dispatch:

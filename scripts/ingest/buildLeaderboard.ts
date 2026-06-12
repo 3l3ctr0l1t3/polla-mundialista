@@ -14,6 +14,8 @@ import type { ScoreBreakdown } from '../../src/shared/scoring.ts'
 /** Minimal slice of a prediction needed to aggregate the board. */
 export interface GradedPrediction {
   uid: string
+  /** The match this prediction is for — used to gate on FINISHED matches only. */
+  matchId: string
   /** Total awarded points; undefined/null means not yet graded → ignored. */
   points?: number | null
   breakdown?: ScoreBreakdown | null
@@ -57,10 +59,19 @@ function isGraded(p: GradedPrediction): boolean {
  * predictions), so the board is complete. Predictions whose uid is not in the
  * participant set are skipped — e.g. an ex-member whose predictions linger, or a
  * uid that belongs only to a DIFFERENT group, guaranteeing cross-group isolation.
+ *
+ * `predictionsGraded` is a SHARED denominator: it equals `finishedMatchIds.size`
+ * for every participant (ticket 034). A participant with no prediction for a
+ * FINISHED match is still accountable for it — that match contributes 0 points
+ * (and 0 to exact/outcome) but is included in the denominator. `totalPoints` is
+ * therefore unchanged from summing only the real graded predictions (a missing
+ * pick adds nothing). Predictions whose `matchId` is not in `finishedMatchIds`
+ * (not yet FINISHED) are ignored entirely.
  */
 export function buildLeaderboard(
   predictions: GradedPrediction[],
   participants: ParticipantProfile[],
+  finishedMatchIds: ReadonlySet<string>,
 ): LeaderboardRow[] {
   const byUid = new Map<string, LeaderboardRow>()
 
@@ -72,7 +83,9 @@ export function buildLeaderboard(
       totalPoints: 0,
       exactCount: 0,
       outcomeCount: 0,
-      predictionsGraded: 0,
+      // Same denominator for everyone: the number of FINISHED matches. A missing
+      // pick still counts as a graded (0-point) match (ticket 034).
+      predictionsGraded: finishedMatchIds.size,
       rank: 0,
       joinedAtMs: u.joinedAtMs,
     })
@@ -80,11 +93,11 @@ export function buildLeaderboard(
 
   for (const p of predictions) {
     if (!isGraded(p)) continue
+    if (!finishedMatchIds.has(p.matchId)) continue // match not FINISHED — ignore.
     const row = byUid.get(p.uid)
     if (!row) continue // prediction for an unknown/removed user — skip.
 
     row.totalPoints += p.points ?? 0
-    row.predictionsGraded += 1
     if (p.breakdown) {
       if (p.breakdown.exact > 0) row.exactCount += 1
       else if (p.breakdown.outcome > 0) row.outcomeCount += 1

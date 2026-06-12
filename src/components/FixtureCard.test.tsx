@@ -512,15 +512,13 @@ describe('FixtureCard', () => {
       expect(screen.getByTestId('fixture-card-points-pill')).toHaveTextContent('11 pts')
     })
 
-    it('renders NO pill on finished-without-prediction, live, locked, or editable cards', () => {
+    it('renders NO pill on live, locked, or editable cards', () => {
       const graded: Prediction = {
         ...existingPred(2, 1),
         points: 6,
         breakdown: { exact: 5, outcome: 0, goalDiff: 1 },
       }
       const cases: ReactNode[] = [
-        // Finished, no prediction.
-        <FixtureCard gid="g1" match={finishedMatch()} now={afterKickoff} />,
         // Live (IN_PLAY) — even with graded data present, no pill before FINISHED.
         <FixtureCard
           gid="g1"
@@ -543,6 +541,26 @@ describe('FixtureCard', () => {
         expect(screen.queryByTestId('fixture-card-points-pill')).toBeNull()
         unmount()
       }
+    })
+  })
+
+  // --- ticket 034: missed prediction → explicit "0 pts · no prediction" pill (rules 7–8) ---
+
+  describe('missed-prediction zero pill (034 rules 7–8)', () => {
+    const finishedMatch = () =>
+      makeMatch({ status: 'FINISHED', score: { home: 2, away: 1, winner: 'HOME_TEAM' } })
+
+    it('renders an explicit "0 pts · no prediction" miss pill on FINISHED + no pick (rule 8)', () => {
+      renderCard(<FixtureCard gid="g1" match={finishedMatch()} now={afterKickoff} />)
+      const pill = screen.getByTestId('fixture-card-points-pill')
+      expect(pill).toHaveTextContent('0 pts · no prediction')
+      expect(pill).toHaveAttribute('data-tier', 'miss')
+    })
+
+    it('does NOT show the zero pill on a locked-but-not-finished card with no pick (rule 7)', () => {
+      // Kickoff passed (locked) but the match is still SCHEDULED/TIMED, not FINISHED.
+      renderCard(<FixtureCard gid="g1" match={makeMatch({ status: 'TIMED' })} now={afterKickoff} />)
+      expect(screen.queryByTestId('fixture-card-points-pill')).toBeNull()
     })
   })
 

@@ -13,6 +13,18 @@ import { dark, light, backdrop, glow, shape, typography, SEED } from './tokens'
 
 export { SEED }
 
+// Custom palette slot: `tangerine` — the partial-scoring-hit accent (ticket 032 pill).
+// Registered like the built-in semantic colors so components can reference
+// `tangerine.main` / `theme.palette.tangerine` with full type safety.
+declare module '@mui/material/styles' {
+  interface Palette {
+    tangerine: Palette['warning']
+  }
+  interface PaletteOptions {
+    tangerine?: PaletteOptions['warning']
+  }
+}
+
 export const theme = createTheme({
   cssVariables: {
     colorSchemeSelector: 'class',
@@ -26,6 +38,7 @@ export const theme = createTheme({
         secondary: light.secondary,
         success: light.success,
         warning: light.warning,
+        tangerine: light.tangerine,
         error: light.error,
         info: light.info,
         background: light.background,
@@ -44,6 +57,7 @@ export const theme = createTheme({
         secondary: dark.secondary,
         success: dark.success,
         warning: dark.warning,
+        tangerine: dark.tangerine,
         error: dark.error,
         info: dark.info,
         background: dark.background,

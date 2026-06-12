@@ -233,6 +233,82 @@ function VariantRow({
   )
 }
 
+/* -------------------------------------- middle-tier pill color candidates */
+
+/** A "3 pts" pill in an arbitrary candidate color (canvas-only — hex allowed here). */
+function CandidatePill({ color }: { color: string }) {
+  return (
+    <Stack
+      direction="row"
+      spacing={0.75}
+      sx={{
+        alignItems: 'center',
+        px: 1,
+        py: 0.25,
+        borderRadius: 999,
+        border: 1,
+        borderColor: color,
+        width: 'fit-content',
+      }}
+    >
+      <Dot color={color} size={8} />
+      <Typography
+        variant="caption"
+        sx={{ fontWeight: 700, fontVariantNumeric: 'tabular-nums', color }}
+      >
+        3 pts
+      </Typography>
+    </Stack>
+  )
+}
+
+interface ColorCandidate {
+  key: string
+  label: string
+  color: string
+}
+
+// Candidates DERIVED from the theme's neon family: every brand accent sits at
+// ~95-100% saturation, ~60-66% lightness (blue 201°, mint 150°, gold 45°, pink 349°).
+// These keep that exact S/L signature and only move the HUE, so they sit on the
+// same "neon ring" as the rest of the page.
+const MIDDLE_TIER_CANDIDATES: ColorCandidate[] = [
+  { key: 'current', label: 'Current · brand gold 45° (#ffd24d)', color: '#ffd24d' },
+  { key: 'tangerine', label: '1 · Neon tangerine 25° (#ff8e3d)', color: '#ff8e3d' },
+  { key: 'amber', label: '2 · Neon amber 35° (#ffae3d)', color: '#ffae3d' },
+  { key: 'coral', label: '3 · Neon coral 15° (#ff7a4d)', color: '#ff7a4d' },
+  { key: 'violet', label: '4 · Neon violet 270° (#a855ff)', color: '#a855ff' },
+  { key: 'blue', label: '5 · Brand blue 201° (primary #36b8ff)', color: '#36b8ff' },
+]
+
+/** The middle-tier ("right winner, wrong score") pill in candidate colors, on a real card. */
+export function PillColorCandidates() {
+  return (
+    <Stack spacing={2}>
+      <Stack direction={{ xs: 'column', lg: 'row' }} spacing={2} useFlexGap>
+        {MIDDLE_TIER_CANDIDATES.map((c) => (
+          <Box key={c.key}>
+            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
+              {c.label}
+            </Typography>
+            <FinishedCard
+              pred={{ home: 1, away: 0 }}
+              indicator={<CandidatePill color={c.color} />}
+            />
+          </Box>
+        ))}
+      </Stack>
+      <Stack direction="row" spacing={2} sx={{ alignItems: 'center' }}>
+        <Typography variant="caption" color="text.secondary">
+          For reference, the two fixed tiers:
+        </Typography>
+        <CandidatePill color="#46f5a0" />
+        <CandidatePill color="#ff4d6d" />
+      </Stack>
+    </Stack>
+  )
+}
+
 export function FinishedCardOptions() {
   return (
     <Stack spacing={4}>

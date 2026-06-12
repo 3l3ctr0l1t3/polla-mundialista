@@ -23,6 +23,12 @@ export const brand = {
   mint: '#46f5a0',
   /** Gold — warning / highlight. */
   gold: '#ffd24d',
+  /**
+   * Neon tangerine — the "partial hit" accent (right winner, wrong score; ticket 032
+   * pill, user-picked). Hue 25° at the same ~100% saturation / ~62% lightness as the
+   * rest of the neon family, midway between gold (45°) and pink (349°).
+   */
+  tangerine: '#ff8e3d',
 } as const
 
 /**
@@ -56,6 +62,13 @@ export const dark = {
     light: '#ffe08a',
     dark: '#d3a300',
     contrastText: '#1a1400',
+  },
+  /** Custom accent: partial scoring hit (see `brand.tangerine`). */
+  tangerine: {
+    main: '#ff8e3d',
+    light: '#ffb27a',
+    dark: '#e06a10',
+    contrastText: '#1a0c02',
   },
   error: {
     main: '#ff4d6d',
@@ -114,6 +127,13 @@ export const light = {
     main: '#b07c00',
     light: '#ffd24d',
     dark: '#7a5400',
+    contrastText: '#ffffff',
+  },
+  /** Custom accent: partial scoring hit (light companion of `brand.tangerine`). */
+  tangerine: {
+    main: '#c75e10',
+    light: '#ff8e3d',
+    dark: '#8f3f00',
     contrastText: '#ffffff',
   },
   error: {

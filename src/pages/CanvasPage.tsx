@@ -22,7 +22,7 @@ import {
   TitleMenuPreview,
   BottomSheetPreview,
 } from '../dev/GroupNavPreviews'
-import { FinishedCardOptions } from '../dev/FinishedCardPreviews'
+import { FinishedCardOptions, PillColorCandidates } from '../dev/FinishedCardPreviews'
 
 /** Widths we eyeball the card at: a phone-ish column and a roomy desktop column. */
 const MOBILE_WIDTH = 400
@@ -169,6 +169,16 @@ export function CanvasPage() {
         with three sample predictions per option.
       </Alert>
       <FinishedCardOptions />
+
+      {/* ---- Pill middle-tier color candidates (worktree iteration) ----------- */}
+      <Typography variant="h5" component="h2" sx={{ mt: 5, mb: 1 }}>
+        Points pill — middle-tier color candidates
+      </Typography>
+      <Alert severity="info" sx={{ mb: 2 }}>
+        The &quot;right winner, wrong score&quot; pill in candidate colors (green/red tiers stay as
+        they are). Same card, same prediction (1–0 on a 2–1 result) — only the tint changes.
+      </Alert>
+      <PillColorCandidates />
     </Box>
   )
 }

@@ -23,7 +23,7 @@
  *
  * FINISHED (ticket 032): no button — the WHOLE card is an accessible click target that opens
  * the same dialog, and a bottom-right dot + points pill (canvas option C) shows how the pick
- * did: green `success` = exact, orange `warning` = right outcome only, red `error` = missed.
+ * did: green `success` = exact, neon `tangerine` = right outcome only, red `error` = missed.
  * Ingestion-written `points`/`breakdown` are authoritative; otherwise the pill previews with
  * the ONE shared scoring engine (group-config aware). The card renders the SAME three fixed
  * zones (top row · 84px center · 44px footer) in every state so it never changes size.
@@ -192,9 +192,10 @@ function Spinner({
 /** Best scoring tier the pick hit — drives the pill's single tint (ticket 032). */
 type Tier = 'exact' | 'outcome' | 'miss'
 
-const TIER_COLOR: Record<Tier, 'success.main' | 'warning.main' | 'error.main'> = {
+const TIER_COLOR: Record<Tier, 'success.main' | 'tangerine.main' | 'error.main'> = {
   exact: 'success.main',
-  outcome: 'warning.main',
+  // Neon tangerine — the dedicated partial-hit accent (user-picked; see theme/tokens.ts).
+  outcome: 'tangerine.main',
   miss: 'error.main',
 }
 
